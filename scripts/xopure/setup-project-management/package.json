@@ -1,0 +1,13 @@
+{
+  "name": "xopure-setup-project-management",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node ./index.mjs"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3",
+    "pg": "8.12.0"
+  }
+}
