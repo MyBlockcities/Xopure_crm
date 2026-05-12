@@ -1,6 +1,6 @@
 # services/server/Dockerfile
 #
-# Twenty CRM — server (web) service
+# XO Pure CRM — server (web) service, built on Twenty.
 #
 # Pin to an exact upstream tag. Check https://github.com/twentyhq/twenty/releases
 # for the current stable version before changing this. NEVER use `latest`.
@@ -9,9 +9,17 @@
 
 FROM twentycrm/twenty:v0.32.0
 
-# Twenty's official entrypoint already runs migrations on boot and starts
-# the NestJS server. We don't need to override anything here; this Dockerfile
-# exists only so Railway has something concrete to build.
+# Overlay XO Pure branding on top of the upstream frontend dist.
+# Replaces favicon/icons, manifest, and page title without rebuilding twenty-front.
+# NOTE: Railway uses repo-root as the Docker build context, so paths are
+# repo-root-relative, not Dockerfile-relative.
+USER root
+COPY services/server/branding/index.html     /app/packages/twenty-server/dist/front/index.html
+COPY services/server/branding/manifest.json  /app/packages/twenty-server/dist/front/manifest.json
+COPY services/server/branding/icons/android/ /app/packages/twenty-server/dist/front/icons/android/
+COPY services/server/branding/icons/ios/     /app/packages/twenty-server/dist/front/icons/ios/
+RUN chown -R node:node /app/packages/twenty-server/dist/front
+USER node
 
 # Railway expects services to listen on $PORT. Twenty respects NODE_PORT.
 # The live crm.xopure.com domain is currently mapped to port 8080, so set

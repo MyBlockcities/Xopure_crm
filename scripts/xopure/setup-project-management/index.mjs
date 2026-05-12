@@ -4,19 +4,21 @@
 //   - relation         ProjectTask.project (MANY_TO_ONE) → Project
 //   - Kanban view      on ProjectTask grouped by status
 //
-// Auth: pass an API key generated from the Settings UI
-// (https://crm.xopure.com → Settings → APIs & Webhooks → New API Key).
-// Hand-minting against the deployed twentycrm/twenty:v0.32.0 image is
-// brittle, so we take the boring path.
+// Auth note: twentycrm/twenty:v0.32.0 has a sign/verify mismatch bug — it
+// signs API keys with sha256(APP_SECRET + workspaceId + 'ACCESS') but
+// verifies with sha256(APP_SECRET + 'undefined' + 'ACCESS'). UI-generated
+// keys therefore cannot verify. This script mints a JWT using the
+// verify-side derivation, reusing an existing apiKey row's id (jti).
 //
 // Env required:
-//   TWENTY_API_KEY           Bearer token copied from Settings → APIs & Webhooks
+//   TWENTY_APP_SECRET        Same APP_SECRET as the running server
+//   TWENTY_WORKSPACE_ID      Workspace UUID
+//   TWENTY_API_KEY_ID        Existing apiKey row id (jti) to attach the token to
 //   TWENTY_SERVER_URL        e.g. https://crm.xopure.com
-//
-// Optional:
-//   DRY_RUN=1                Read existing objects only, no writes.
 
+import crypto from 'node:crypto';
 import process from 'node:process';
+import jwt from 'jsonwebtoken';
 
 const env = (k) => {
   const v = process.env[k];
@@ -27,9 +29,23 @@ const env = (k) => {
   return v;
 };
 
-const token = env('TWENTY_API_KEY');
+const APP_SECRET = env('TWENTY_APP_SECRET');
+const WORKSPACE_ID = env('TWENTY_WORKSPACE_ID');
+const API_KEY_ID = env('TWENTY_API_KEY_ID');
 const SERVER_URL = env('TWENTY_SERVER_URL').replace(/\/$/, '');
 const DRY_RUN = process.env.DRY_RUN === '1';
+
+// Bug-compatible secret: verify side uses 'undefined' because payload has no workspaceId
+const verifySecret = crypto
+  .createHash('sha256')
+  .update(`${APP_SECRET}undefinedACCESS`)
+  .digest('hex');
+
+const token = jwt.sign({ sub: WORKSPACE_ID }, verifySecret, {
+  algorithm: 'HS256',
+  expiresIn: '100y',
+  jwtid: API_KEY_ID,
+});
 
 const log = (...a) => console.log('[setup-pm]', ...a);
 
@@ -105,8 +121,29 @@ const projectTaskId = await ensureObject({
   description: 'A unit of work inside a Project — Kanban board source',
 });
 
-// 4) Fields
-const createField = async (objectMetadataId, field, relationCreationPayload) => {
+// 4) Fields — idempotent: list existing fields per object, skip duplicates
+const listFields = async (objectMetadataId) => {
+  const data = await graphql(
+    '/metadata',
+    `query($filter: objectFilter) {
+      objects(paging: { first: 200 }, filter: $filter) {
+        edges { node { id nameSingular fields(paging: { first: 200 }) { edges { node { id name type } } } } }
+      }
+    }`,
+    { filter: { id: { eq: objectMetadataId } } },
+  );
+  const node = data.objects.edges[0]?.node;
+  return node?.fields?.edges?.map((e) => e.node) ?? [];
+};
+
+const createField = async (objectMetadataId, field) => {
+  const existing = (await listFields(objectMetadataId)).find(
+    (f) => f.name === field.name,
+  );
+  if (existing) {
+    log(`  = field ${field.name} exists (${existing.id})`);
+    return existing;
+  }
   const body = {
     field: {
       objectMetadataId,
@@ -116,9 +153,6 @@ const createField = async (objectMetadataId, field, relationCreationPayload) => 
       ...field,
     },
   };
-  if (relationCreationPayload) {
-    body.field.relationCreationPayload = relationCreationPayload;
-  }
   const data = await graphql(
     '/metadata',
     `mutation($input: CreateOneFieldMetadataInput!) {
@@ -207,22 +241,35 @@ await createField(projectTaskId, {
   icon: 'IconCalendarTime',
 });
 
-// Relation: ProjectTask.project (MANY_TO_ONE) → Project.tasks
-await createField(
-  projectTaskId,
-  {
-    type: 'RELATION',
-    name: 'project',
-    label: 'Project',
-    icon: 'IconRocket',
-  },
-  {
-    type: 'MANY_TO_ONE',
-    targetObjectMetadataId: projectId,
-    targetFieldLabel: 'Tasks',
-    targetFieldIcon: 'IconChecklist',
-  },
-);
+// Relation: Project (1) -< ProjectTask (many) — v0.32.0 uses createOneRelation
+const projectFields = await listFields(projectId);
+const hasRelation = projectFields.some((f) => f.name === 'tasks' && f.type === 'RELATION');
+if (hasRelation) {
+  log(`  = relation project.tasks already exists`);
+} else {
+  await graphql(
+    '/metadata',
+    `mutation($input: CreateOneRelationInput!) {
+      createOneRelation(input: $input) { id relationType }
+    }`,
+    {
+      input: {
+        relation: {
+          relationType: 'ONE_TO_MANY',
+          fromObjectMetadataId: projectId,
+          toObjectMetadataId: projectTaskId,
+          fromName: 'tasks',
+          toName: 'project',
+          fromLabel: 'Tasks',
+          toLabel: 'Project',
+          fromIcon: 'IconChecklist',
+          toIcon: 'IconRocket',
+        },
+      },
+    },
+  );
+  log(`  + relation project.tasks ↔ projectTask.project created`);
+}
 
 // 5) Kanban view on ProjectTask grouped by status
 const viewData = await graphql(
