@@ -58,6 +58,8 @@ export type { PreInstallLogicFunctionApplicationManifest } from './preInstallLog
 export type {
   ObjectPermissionManifest,
   FieldPermissionManifest,
+  RowLevelPermissionPredicateGroupManifest,
+  RowLevelPermissionPredicateManifest,
   PermissionFlagManifest,
   RoleManifest,
 } from './roleManifestType';

@@ -1,4 +1,8 @@
-import { defineRole } from '@/sdk/define';
+import {
+  defineRole,
+  RowLevelPermissionPredicateGroupLogicalOperator,
+  RowLevelPermissionPredicateOperand,
+} from '@/sdk/define';
 
 describe('defineRole', () => {
   const validConfig = {
@@ -42,6 +46,38 @@ describe('defineRole', () => {
 
     expect(result.success).toBe(true);
     expect(result.config?.permissionFlags).toHaveLength(2);
+  });
+
+  it('should accept row level permission predicates and groups', () => {
+    const config = {
+      ...validConfig,
+      rowLevelPermissionPredicateGroups: [
+        {
+          universalIdentifier: 'cb8407cb-35c3-5336-becf-58995b35582b',
+          objectUniversalIdentifier: '38339ab2-f00b-416c-8ee0-806b48caca18',
+          logicalOperator: RowLevelPermissionPredicateGroupLogicalOperator.OR,
+        },
+      ],
+      rowLevelPermissionPredicates: [
+        {
+          objectUniversalIdentifier: '38339ab2-f00b-416c-8ee0-806b48caca18',
+          fieldUniversalIdentifier: 'dd14cab4-0829-4475-a794-d0d4959161e6',
+          operand: RowLevelPermissionPredicateOperand.IS,
+          value: {
+            isCurrentWorkspaceMemberSelected: true,
+            selectedRecordIds: [],
+          },
+          rowLevelPermissionPredicateGroupUniversalIdentifier:
+            'cb8407cb-35c3-5336-becf-58995b35582b',
+        },
+      ],
+    };
+
+    const result = defineRole(config);
+
+    expect(result.success).toBe(true);
+    expect(result.config?.rowLevelPermissionPredicateGroups).toHaveLength(1);
+    expect(result.config?.rowLevelPermissionPredicates).toHaveLength(1);
   });
 
   it('should return error when universalIdentifier is missing', () => {
@@ -119,6 +155,25 @@ describe('defineRole', () => {
     expect(result.success).toBe(false);
     expect(result.errors).toContain(
       'Field permission must have a fieldUniversalIdentifier',
+    );
+  });
+
+  it('should return error when row predicate has no fieldUniversalIdentifier', () => {
+    const config = {
+      ...validConfig,
+      rowLevelPermissionPredicates: [
+        {
+          objectUniversalIdentifier: '38339ab2-f00b-416c-8ee0-806b48caca18',
+          operand: RowLevelPermissionPredicateOperand.IS,
+        },
+      ],
+    };
+
+    const result = defineRole(config as any);
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toContain(
+      'Row level permission predicate must have a fieldUniversalIdentifier',
     );
   });
 });
