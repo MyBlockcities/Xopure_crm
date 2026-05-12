@@ -11,13 +11,15 @@ FROM twentycrm/twenty:v0.32.0
 
 # Overlay XO Pure branding on top of the upstream frontend dist.
 # Replaces favicon/icons, manifest, and page title without rebuilding twenty-front.
-# NOTE: Railway uses the Dockerfile's directory (services/server) as the build
-# context — paths below are relative to that, not the repo root.
+# NOTE: Railway's build context is determined by the service's Root Directory
+# setting in the dashboard. This Dockerfile assumes Root Directory = "/" (repo
+# root). If the dashboard ever sets a different Root Directory, these paths
+# must be adjusted to match.
 USER root
-COPY branding/index.html     /app/packages/twenty-server/dist/front/index.html
-COPY branding/manifest.json  /app/packages/twenty-server/dist/front/manifest.json
-COPY branding/icons/android/ /app/packages/twenty-server/dist/front/icons/android/
-COPY branding/icons/ios/     /app/packages/twenty-server/dist/front/icons/ios/
+COPY services/server/branding/index.html     /app/packages/twenty-server/dist/front/index.html
+COPY services/server/branding/manifest.json  /app/packages/twenty-server/dist/front/manifest.json
+COPY services/server/branding/icons/android/ /app/packages/twenty-server/dist/front/icons/android/
+COPY services/server/branding/icons/ios/     /app/packages/twenty-server/dist/front/icons/ios/
 RUN chown -R node:node /app/packages/twenty-server/dist/front
 USER node
 
