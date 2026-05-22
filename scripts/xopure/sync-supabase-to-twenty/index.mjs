@@ -1,5 +1,5 @@
-// Sync ambassadors (affiliates) and customers from the XO Pure Supabase
-// project into the Twenty CRM workspace. Idempotent: tracks state in
+// Sync products, ambassadors (affiliates), customers, periods, and orders from
+// the XO Pure Supabase project into the Twenty CRM workspace. Idempotent: tracks state in
 // public.crm_sync_map on the Supabase side, keyed by source_id.
 //
 // Env required:
@@ -93,7 +93,11 @@ const WS =
 const DRY_RUN = process.env.DRY_RUN === '1';
 const IMPORTED_BY_NAME = process.env.IMPORTED_BY_NAME ?? 'Supabase Sync';
 const DEFAULT_CURRENCY_CODE = process.env.TWENTY_DEFAULT_CURRENCY_CODE ?? 'USD';
+const PRODUCT_TABLE = '_product';
+const PERIOD_TABLE = '_period';
 const AMBASSADOR_TABLE = '_ambassador';
+const CUSTOMER_TABLE = '_customer';
+const ORDER_TABLE = '_xoOrder';
 
 if (!TWENTY_PG_URL || !WS) {
   console.error(
@@ -129,6 +133,9 @@ const splitName = (full) => {
 const hash = (obj) =>
   crypto.createHash('sha256').update(JSON.stringify(obj)).digest('hex');
 
+const shortHash = (value) =>
+  crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 10);
+
 const log = (...args) => console.log('[sync]', ...args);
 
 const quoteIdent = (value) => {
@@ -148,6 +155,63 @@ const centsToAmountMicros = (cents) => {
 
   return Math.round(Number(cents) * 10_000);
 };
+
+const normalizeEmail = (email) => String(email ?? '').trim().toLowerCase();
+
+const addDaysIso = (isoDate, days) => {
+  if (!isoDate) return undefined;
+
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return undefined;
+
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString();
+};
+
+const toMonthCode = (isoDate) => {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return undefined;
+
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+};
+
+const monthStartIso = (periodCode) => `${periodCode}-01`;
+
+const monthEndIso = (periodCode) => {
+  const [year, month] = periodCode.split('-').map(Number);
+  const end = new Date(Date.UTC(year, month, 0));
+
+  return end.toISOString().slice(0, 10);
+};
+
+const directAffiliateIdFromOrder = (order) =>
+  Array.isArray(order.affiliate_chain) && order.affiliate_chain.length > 0
+    ? order.affiliate_chain[0]
+    : null;
+
+const orderQuantity = (order) =>
+  Array.isArray(order.items)
+    ? order.items.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0)
+    : 0;
+
+const singleProductIdFromOrder = (order) => {
+  if (!Array.isArray(order.items)) return null;
+
+  const productIds = [
+    ...new Set(
+      order.items
+        .map((item) => item.product_id)
+        .filter((productId) => productId !== undefined && productId !== null),
+    ),
+  ];
+
+  return productIds.length === 1 ? productIds[0] : null;
+};
+
+const orderCvCents = (order) =>
+  order.cv_amount === null || order.cv_amount === undefined
+    ? 0
+    : Number(order.cv_amount);
 
 const normalizeSelectValue = (value) =>
   String(value ?? '')
@@ -209,6 +273,54 @@ const mapOnboardingStage = (status) => {
   }
 
   return 'INVITED';
+};
+
+const mapProductCategory = (product) => {
+  const text = normalizeSelectValue(
+    `${product.category ?? ''} ${product.name ?? ''} ${product.sku ?? ''}`,
+  );
+
+  if (text.includes('NAD')) return 'NAD';
+  if (text.includes('METALEAN')) return 'METALEAN';
+  if (text.includes('BPC') || text.includes('TB_500') || text.includes('TB500')) {
+    return 'BPC_TB500';
+  }
+  if (text.includes('KLOW')) return 'KLOW';
+
+  return 'OTHER';
+};
+
+const mapProductFormat = (product) => {
+  const text = normalizeSelectValue(
+    `${product.category ?? ''} ${product.name ?? ''} ${product.sku ?? ''}`,
+  );
+
+  return text.includes('STRIP') ? 'ORAL_STRIP' : 'OTHER';
+};
+
+const mapOrderStatus = (paymentStatus) => {
+  const normalized = normalizeSelectValue(paymentStatus);
+
+  if (['PAID', 'SUCCEEDED', 'SUCCESS', 'COMPLETED', 'CAPTURED'].includes(normalized)) {
+    return 'PAID';
+  }
+  if (normalized.includes('SHIP')) return 'SHIPPED';
+  if (normalized.includes('DELIVER')) return 'DELIVERED';
+  if (normalized.includes('REFUND')) return 'REFUNDED';
+  if (normalized.includes('CHARGEBACK') || normalized.includes('DISPUTE')) {
+    return 'CHARGEBACK';
+  }
+
+  return 'PENDING';
+};
+
+const mapPaymentMethod = (paymentGateway) => {
+  const normalized = normalizeSelectValue(paymentGateway);
+
+  if (normalized === 'STRIPE') return 'STRIPE';
+  if (normalized === 'PAYPAL') return 'PAYPAL';
+
+  return undefined;
 };
 
 const twenty = new Client({
@@ -618,41 +730,120 @@ const listAffiliates = async () => {
   });
 };
 
-const listDistinctOrderEmails = async () => {
+const listProducts = async () => {
   if (supabasePg) {
     const { rows } = await supabasePg.query(
-      `select distinct on (lower(user_email))
-              user_email,
-              min(created_at) over (partition by lower(user_email)) as first_seen
-         from public.orders
-        where user_email is not null and length(user_email) > 0`,
+      `select id, sku, name, description, price_cents, currency, category,
+              active, metadata, slug, product_url, cv_amount, created_at, updated_at
+         from public.products
+        order by created_at`,
     );
     return rows;
   }
 
-  const rows = await supabaseRest('orders', {
+  return await supabaseRest('products', {
     params: {
-      select: 'user_email,created_at',
+      select:
+        'id,sku,name,description,price_cents,currency,category,active,metadata,slug,product_url,cv_amount,created_at,updated_at',
+      order: 'created_at.asc',
+    },
+  });
+};
+
+const listOrders = async () => {
+  if (supabasePg) {
+    const { rows } = await supabasePg.query(
+      `select id, user_email, subtotal_cents, discount_amount_cents,
+              shipping_cents, tax_cents, total_cents, refund_amount_cents,
+              currency, affiliate_chain, commission_plan_id, commission_amounts,
+              payment_gateway, payment_status, gateway_payload, shipping_address,
+              items, event_type, cv_amount, buyer_type, created_at, updated_at
+         from public.orders
+        where user_email is not null and length(user_email) > 0
+        order by created_at`,
+    );
+    return rows;
+  }
+
+  return await supabaseRest('orders', {
+    params: {
+      select:
+        'id,user_email,subtotal_cents,discount_amount_cents,shipping_cents,tax_cents,total_cents,refund_amount_cents,currency,affiliate_chain,commission_plan_id,commission_amounts,payment_gateway,payment_status,gateway_payload,shipping_address,items,event_type,cv_amount,buyer_type,created_at,updated_at',
       user_email: 'not.is.null',
       order: 'created_at.asc',
     },
   });
+};
 
+const buildCustomerSummaries = (orders) => {
   const byEmail = new Map();
-  for (const row of rows) {
-    const email = row.user_email?.trim();
+
+  for (const order of orders) {
+    const email = normalizeEmail(order.user_email);
     if (!email) continue;
-    const key = email.toLowerCase();
-    const existing = byEmail.get(key);
-    if (!existing || row.created_at < existing.first_seen) {
-      byEmail.set(key, {
-        user_email: email,
-        first_seen: row.created_at,
-      });
+
+    const shipping = order.shipping_address ?? {};
+    const existing = byEmail.get(email) ?? {
+      sourceId: email,
+      email,
+      firstName: '',
+      lastName: '',
+      phone: '',
+      firstOrderAt: order.created_at,
+      lastOrderAt: order.created_at,
+      lifetimeSpendCents: 0,
+      lifetimeCVCents: 0,
+      orderCount: 0,
+      shippingAddress: {},
+      referrerAffiliateId: null,
+    };
+
+    existing.orderCount += 1;
+    existing.lifetimeSpendCents += Number(order.total_cents ?? 0);
+    existing.lifetimeCVCents += orderCvCents(order);
+
+    if (!existing.firstOrderAt || order.created_at < existing.firstOrderAt) {
+      existing.firstOrderAt = order.created_at;
     }
+
+    if (!existing.lastOrderAt || order.created_at >= existing.lastOrderAt) {
+      existing.lastOrderAt = order.created_at;
+      existing.firstName = shipping.first_name ?? existing.firstName;
+      existing.lastName = shipping.last_name ?? existing.lastName;
+      existing.phone = shipping.phone ?? existing.phone;
+      existing.shippingAddress = shipping;
+    }
+
+    existing.referrerAffiliateId =
+      existing.referrerAffiliateId ?? directAffiliateIdFromOrder(order);
+
+    byEmail.set(email, existing);
   }
 
   return [...byEmail.values()];
+};
+
+const buildPeriodSummaries = (orders) => {
+  const byCode = new Map();
+
+  for (const order of orders) {
+    const periodCode = toMonthCode(order.created_at);
+    if (!periodCode) continue;
+
+    const existing = byCode.get(periodCode) ?? {
+      periodCode,
+      totalRetailCents: 0,
+      totalCVCents: 0,
+    };
+
+    existing.totalRetailCents += Number(order.total_cents ?? 0);
+    existing.totalCVCents += orderCvCents(order);
+    byCode.set(periodCode, existing);
+  }
+
+  return [...byCode.values()].sort((a, b) =>
+    a.periodCode.localeCompare(b.periodCode),
+  );
 };
 
 if (supabasePg) {
@@ -662,10 +853,14 @@ await twenty.connect();
 log(`connected. dry_run=${DRY_RUN} workspace=${WS} supabase=${SUPABASE_SYNC_SOURCE}`);
 
 const stats = {
+  products: { read: 0, inserted: 0, updated: 0, skipped: 0 },
   affiliates: { read: 0, inserted: 0, updated: 0, skipped: 0 },
   ambassadors: { read: 0, inserted: 0, updated: 0, skipped: 0 },
   sponsorLinks: { read: 0, linked: 0, skipped: 0, missing: 0 },
-  customers: { read: 0, inserted: 0, updated: 0, skipped: 0 },
+  customerPeople: { read: 0, inserted: 0, updated: 0, skipped: 0 },
+  customerProfiles: { read: 0, inserted: 0, updated: 0, skipped: 0 },
+  periods: { read: 0, inserted: 0, updated: 0, skipped: 0 },
+  orders: { read: 0, inserted: 0, updated: 0, skipped: 0 },
 };
 
 const upsertPerson = async ({
@@ -820,6 +1015,10 @@ const buildAmbassadorPayload = (row, personId) => {
 };
 
 const ambassadorValuesFromPayload = (payload) => ({
+  name:
+    [payload.firstName, payload.lastName].filter(Boolean).join(' ') ||
+    payload.email ||
+    payload.ambassadorCode,
   supabaseId: payload.supabaseId,
   ambassadorCode: payload.ambassadorCode,
   fullNameFirstName: payload.firstName,
@@ -995,14 +1194,466 @@ const linkAmbassadorSponsors = async (affiliateRows, ambassadorIdBySourceId) => 
   }
 };
 
-// 1) Affiliates → Twenty people (tagged "Ambassador")
+const upsertProduct = async (row) => {
+  await assertTableExists(PRODUCT_TABLE, 'Run the custom object setup first.');
+
+  const payload = {
+    supabaseId: row.id,
+    sku: row.sku,
+    name: row.name,
+    category: mapProductCategory(row),
+    format: mapProductFormat(row),
+    retailPriceMicros: centsToAmountMicros(row.price_cents),
+    cvAmountMicros: centsToAmountMicros(
+      row.cv_amount ?? Math.round(Number(row.price_cents ?? 0) * 0.5),
+    ),
+    currency: row.currency ?? DEFAULT_CURRENCY_CODE,
+    stripePriceId:
+      row.metadata?.stripe_price_id ??
+      row.metadata?.stripePriceId ??
+      row.metadata?.stripe_price ??
+      undefined,
+    safeDescription: row.description,
+    isActive: row.active ?? true,
+    commissionEligible: row.active !== false,
+  };
+  const contentHash = hash(payload);
+  const mapping = await getSyncMap({
+    sourceSystem: 'supabase',
+    sourceTable: 'products',
+    sourceId: row.id,
+    twentyObject: 'product',
+  });
+
+  let productId = mapping?.twenty_record_id ?? null;
+  let existingProduct = null;
+  let action = 'skipped';
+
+  if (productId) {
+    const r = await twenty.query(
+      `select id, "deletedAt" from ${tableRef(PRODUCT_TABLE)} where id=$1`,
+      [productId],
+    );
+    existingProduct = r.rows[0] ?? null;
+    if (!existingProduct) productId = null;
+  }
+
+  if (!productId) {
+    existingProduct =
+      (await findRecordByColumn(PRODUCT_TABLE, 'supabaseId', row.id)) ??
+      (await findRecordByColumn(PRODUCT_TABLE, 'sku', row.sku));
+    productId = existingProduct?.id ?? null;
+  }
+
+  const values = {
+    name: payload.name,
+    supabaseId: payload.supabaseId,
+    sku: payload.sku,
+    category: payload.category,
+    format: payload.format,
+    retailPriceAmountMicros: payload.retailPriceMicros,
+    retailPriceCurrencyCode: payload.currency,
+    cvAmountAmountMicros: payload.cvAmountMicros,
+    cvAmountCurrencyCode: payload.currency,
+    stripePriceId: payload.stripePriceId,
+    safeDescription: payload.safeDescription,
+    isActive: payload.isActive,
+    commissionEligible: payload.commissionEligible,
+  };
+
+  if (!productId) {
+    if (DRY_RUN) {
+      productId = `dryrun:product:${row.id}`;
+    } else {
+      productId = await insertRecord(PRODUCT_TABLE, values);
+    }
+    action = 'inserted';
+  } else if (mapping?.content_hash === contentHash && existingProduct?.deletedAt == null) {
+    action = 'skipped';
+  } else {
+    if (!DRY_RUN) {
+      await updateRecord(PRODUCT_TABLE, productId, values);
+    }
+    action = 'updated';
+  }
+
+  if (!DRY_RUN) {
+    await upsertSyncMap({
+      sourceSystem: 'supabase',
+      sourceTable: 'products',
+      sourceId: row.id,
+      twentyObject: 'product',
+      twentyId: productId,
+      contentHash,
+      payload,
+    });
+  }
+
+  return { action, id: productId };
+};
+
+const upsertPeriod = async (summary) => {
+  await assertTableExists(PERIOD_TABLE, 'Run the custom object setup first.');
+
+  // status is admin-owned in Twenty (OPEN/CLOSED/FROZEN) — set on insert only,
+  // never overwrite on update. Keep it out of the payload that feeds contentHash
+  // so order-total changes don't drag status back to OPEN.
+  const payload = {
+    periodCode: summary.periodCode,
+    startDate: monthStartIso(summary.periodCode),
+    endDate: monthEndIso(summary.periodCode),
+    totalRetailMicros: centsToAmountMicros(summary.totalRetailCents),
+    totalCVMicros: centsToAmountMicros(summary.totalCVCents),
+    currency: DEFAULT_CURRENCY_CODE,
+  };
+  const contentHash = hash(payload);
+  const mapping = await getSyncMap({
+    sourceSystem: 'supabase',
+    sourceTable: 'order_periods',
+    sourceId: summary.periodCode,
+    twentyObject: 'period',
+  });
+
+  let periodId = mapping?.twenty_record_id ?? null;
+  let existingPeriod = null;
+  let action = 'skipped';
+
+  if (periodId) {
+    const r = await twenty.query(
+      `select id, "deletedAt" from ${tableRef(PERIOD_TABLE)} where id=$1`,
+      [periodId],
+    );
+    existingPeriod = r.rows[0] ?? null;
+    if (!existingPeriod) periodId = null;
+  }
+
+  if (!periodId) {
+    existingPeriod = await findRecordByColumn(
+      PERIOD_TABLE,
+      'periodCode',
+      summary.periodCode,
+    );
+    periodId = existingPeriod?.id ?? null;
+  }
+
+  const updateValues = {
+    name: payload.periodCode,
+    periodCode: payload.periodCode,
+    startDate: payload.startDate,
+    endDate: payload.endDate,
+    totalRetailAmountMicros: payload.totalRetailMicros,
+    totalRetailCurrencyCode: payload.currency,
+    totalCVAmountMicros: payload.totalCVMicros,
+    totalCVCurrencyCode: payload.currency,
+  };
+
+  if (!periodId) {
+    if (DRY_RUN) {
+      periodId = `dryrun:period:${summary.periodCode}`;
+    } else {
+      periodId = await insertRecord(PERIOD_TABLE, { ...updateValues, status: 'OPEN' });
+    }
+    action = 'inserted';
+  } else if (mapping?.content_hash === contentHash && existingPeriod?.deletedAt == null) {
+    action = 'skipped';
+  } else {
+    if (!DRY_RUN) {
+      await updateRecord(PERIOD_TABLE, periodId, updateValues);
+    }
+    action = 'updated';
+  }
+
+  if (!DRY_RUN) {
+    await upsertSyncMap({
+      sourceSystem: 'supabase',
+      sourceTable: 'order_periods',
+      sourceId: summary.periodCode,
+      twentyObject: 'period',
+      twentyId: periodId,
+      contentHash,
+      payload,
+    });
+  }
+
+  return { action, id: periodId };
+};
+
+const buildCustomerValues = (payload) => ({
+  name:
+    [payload.firstName, payload.lastName].filter(Boolean).join(' ') ||
+    payload.email,
+  customerCode: payload.customerCode,
+  fullNameFirstName: payload.firstName,
+  fullNameLastName: payload.lastName,
+  emailsPrimaryEmail: payload.email,
+  phonesPrimaryPhoneNumber: payload.phone,
+  phonesPrimaryPhoneCountryCode: payload.phone ? 'US' : undefined,
+  shippingAddressAddressStreet1: payload.shippingAddress.address,
+  shippingAddressAddressCity: payload.shippingAddress.city,
+  shippingAddressAddressPostcode: payload.shippingAddress.zip,
+  shippingAddressAddressState: payload.shippingAddress.state,
+  shippingAddressAddressCountry: payload.shippingAddress.country ?? 'US',
+  enrolledAt: payload.firstOrderAt,
+  isActive: payload.isActive,
+  lifetimeCVAmountMicros: payload.lifetimeCVMicros,
+  lifetimeCVCurrencyCode: payload.currency,
+  lifetimeSpendAmountMicros: payload.lifetimeSpendMicros,
+  lifetimeSpendCurrencyCode: payload.currency,
+  lastOrderAt: payload.lastOrderAt,
+  orderCount: payload.orderCount,
+  subscriptionStatus: 'NONE',
+  acquisitionSource: payload.referrerId ? 'REFERRAL' : 'DIRECT_LINK',
+  referrerId: payload.referrerId,
+  personId: payload.personId,
+});
+
+const upsertCustomerProfile = async ({ summary, personId, referrerId }) => {
+  await assertTableExists(CUSTOMER_TABLE, 'Run the custom object setup first.');
+
+  const payload = {
+    customerCode: `CUST-${shortHash(summary.email).toUpperCase()}`,
+    firstName: summary.firstName,
+    lastName: summary.lastName,
+    email: summary.email,
+    phone: summary.phone,
+    firstOrderAt: summary.firstOrderAt,
+    lastOrderAt: summary.lastOrderAt,
+    orderCount: summary.orderCount,
+    lifetimeSpendMicros: centsToAmountMicros(summary.lifetimeSpendCents),
+    lifetimeCVMicros: centsToAmountMicros(summary.lifetimeCVCents),
+    currency: DEFAULT_CURRENCY_CODE,
+    isActive:
+      summary.lastOrderAt &&
+      Date.now() - new Date(summary.lastOrderAt).getTime() <=
+        60 * 24 * 60 * 60 * 1000,
+    shippingAddress: summary.shippingAddress ?? {},
+    referrerId,
+    personId,
+  };
+  const contentHash = hash(payload);
+  const mapping = await getSyncMap({
+    sourceSystem: 'supabase',
+    sourceTable: 'order_customers',
+    sourceId: summary.sourceId,
+    twentyObject: 'customer',
+  });
+
+  let customerId = mapping?.twenty_record_id ?? null;
+  let existingCustomer = null;
+  let action = 'skipped';
+
+  if (customerId) {
+    const r = await twenty.query(
+      `select id, "deletedAt" from ${tableRef(CUSTOMER_TABLE)} where id=$1`,
+      [customerId],
+    );
+    existingCustomer = r.rows[0] ?? null;
+    if (!existingCustomer) customerId = null;
+  }
+
+  if (!customerId) {
+    existingCustomer =
+      (await findRecordByColumn(CUSTOMER_TABLE, 'customerCode', payload.customerCode)) ??
+      (await findRecordByEmail(CUSTOMER_TABLE, payload.email));
+    customerId = existingCustomer?.id ?? null;
+  }
+
+  const values = buildCustomerValues(payload);
+
+  if (!customerId) {
+    if (DRY_RUN) {
+      customerId = `dryrun:customer:${summary.sourceId}`;
+    } else {
+      customerId = await insertRecord(CUSTOMER_TABLE, values);
+    }
+    action = 'inserted';
+  } else if (mapping?.content_hash === contentHash && existingCustomer?.deletedAt == null) {
+    action = 'skipped';
+  } else {
+    if (!DRY_RUN) {
+      await updateRecord(CUSTOMER_TABLE, customerId, values);
+    }
+    action = 'updated';
+  }
+
+  if (!DRY_RUN) {
+    await upsertSyncMap({
+      sourceSystem: 'supabase',
+      sourceTable: 'order_customers',
+      sourceId: summary.sourceId,
+      twentyObject: 'customer',
+      twentyId: customerId,
+      contentHash,
+      payload,
+    });
+  }
+
+  return { action, id: customerId };
+};
+
+const buildOrderValues = (payload) => ({
+  name: payload.orderCode,
+  supabaseId: payload.supabaseId,
+  orderCode: payload.orderCode,
+  orderedAt: payload.orderedAt,
+  settledAt: payload.settledAt,
+  status: payload.status,
+  quantity: payload.quantity,
+  unitPriceAmountMicros: payload.unitPriceMicros,
+  unitPriceCurrencyCode:
+    payload.unitPriceMicros === undefined ? undefined : payload.currency,
+  totalRetailAmountMicros: payload.totalRetailMicros,
+  totalRetailCurrencyCode: payload.currency,
+  totalCVAmountMicros: payload.totalCVMicros,
+  totalCVCurrencyCode: payload.currency,
+  paymentMethod: payload.paymentMethod,
+  stripePaymentIntentId: payload.stripePaymentIntentId,
+  paypalCaptureId: payload.paypalCaptureId,
+  isPersonalOrder: payload.isPersonalOrder,
+  discountCode: payload.discountCode,
+  referringAmbassadorId: payload.referringAmbassadorId,
+  customerId: payload.customerId,
+  productId: payload.productId,
+  periodId: payload.periodId,
+});
+
+const upsertOrderRecord = async ({
+  row,
+  customerId,
+  referringAmbassadorId,
+  productId,
+  periodId,
+  affiliateById,
+}) => {
+  await assertTableExists(ORDER_TABLE, 'Run the custom object setup first.');
+
+  const directAffiliateId = directAffiliateIdFromOrder(row);
+  const directAffiliateEmail = directAffiliateId
+    ? normalizeEmail(affiliateById.get(String(directAffiliateId))?.email)
+    : '';
+  const customerEmail = normalizeEmail(row.user_email);
+  const quantity = orderQuantity(row);
+  const unitPriceCents =
+    quantity > 0 && row.subtotal_cents !== null && row.subtotal_cents !== undefined
+      ? Math.round(Number(row.subtotal_cents) / quantity)
+      : undefined;
+  const currency = row.currency ?? DEFAULT_CURRENCY_CODE;
+  const gatewayPayload = row.gateway_payload ?? {};
+
+  const payload = {
+    supabaseId: row.id,
+    orderCode: `ORD-${String(row.id).slice(0, 8).toUpperCase()}`,
+    orderedAt: row.created_at,
+    settledAt: addDaysIso(row.created_at, 7),
+    status: mapOrderStatus(row.payment_status),
+    quantity,
+    unitPriceMicros: centsToAmountMicros(unitPriceCents),
+    totalRetailMicros: centsToAmountMicros(row.total_cents),
+    totalCVMicros: centsToAmountMicros(orderCvCents(row)),
+    currency,
+    paymentMethod: mapPaymentMethod(row.payment_gateway),
+    stripePaymentIntentId:
+      gatewayPayload.payment_intent ??
+      gatewayPayload.paymentIntentId ??
+      gatewayPayload.stripe_payment_intent_id,
+    paypalCaptureId:
+      gatewayPayload.paypal_capture_id ??
+      gatewayPayload.paypalCaptureId ??
+      gatewayPayload.capture_id,
+    isPersonalOrder:
+      Boolean(directAffiliateEmail) && directAffiliateEmail === customerEmail,
+    referringAmbassadorId,
+    customerId,
+    productId,
+    periodId,
+  };
+  const contentHash = hash(payload);
+  const mapping = await getSyncMap({
+    sourceSystem: 'supabase',
+    sourceTable: 'orders',
+    sourceId: row.id,
+    twentyObject: 'xoOrder',
+  });
+
+  let orderId = mapping?.twenty_record_id ?? null;
+  let existingOrder = null;
+  let action = 'skipped';
+
+  if (orderId) {
+    const r = await twenty.query(
+      `select id, "deletedAt" from ${tableRef(ORDER_TABLE)} where id=$1`,
+      [orderId],
+    );
+    existingOrder = r.rows[0] ?? null;
+    if (!existingOrder) orderId = null;
+  }
+
+  if (!orderId) {
+    existingOrder =
+      (await findRecordByColumn(ORDER_TABLE, 'supabaseId', row.id)) ??
+      (await findRecordByColumn(ORDER_TABLE, 'orderCode', payload.orderCode));
+    orderId = existingOrder?.id ?? null;
+  }
+
+  const values = buildOrderValues(payload);
+
+  if (!orderId) {
+    if (DRY_RUN) {
+      orderId = `dryrun:order:${row.id}`;
+    } else {
+      orderId = await insertRecord(ORDER_TABLE, values);
+    }
+    action = 'inserted';
+  } else if (mapping?.content_hash === contentHash && existingOrder?.deletedAt == null) {
+    action = 'skipped';
+  } else {
+    if (!DRY_RUN) {
+      await updateRecord(ORDER_TABLE, orderId, values);
+    }
+    action = 'updated';
+  }
+
+  if (!DRY_RUN) {
+    await upsertSyncMap({
+      sourceSystem: 'supabase',
+      sourceTable: 'orders',
+      sourceId: row.id,
+      twentyObject: 'xoOrder',
+      twentyId: orderId,
+      contentHash,
+      payload,
+    });
+  }
+
+  return { action, id: orderId };
+};
+
+const productIdBySourceId = new Map();
+const periodIdByCode = new Map();
+const ambassadorIdBySourceId = new Map();
+const customerIdByEmail = new Map();
+
+// 1) Products → Twenty Product catalog
 {
-  const rows = await listAffiliates();
-  stats.affiliates.read = rows.length;
-  stats.ambassadors.read = rows.length;
-  const ambassadorIdBySourceId = new Map();
+  const rows = await listProducts();
+  stats.products.read = rows.length;
 
   for (const row of rows) {
+    const result = await upsertProduct(row);
+    stats.products[result.action] += 1;
+    productIdBySourceId.set(String(row.id), result.id);
+    log(`product ${row.sku} -> ${result.action}`);
+  }
+}
+
+const affiliateRows = await listAffiliates();
+
+// 2) Affiliates → Twenty people + Ambassador profiles
+{
+  stats.affiliates.read = affiliateRows.length;
+  stats.ambassadors.read = affiliateRows.length;
+
+  for (const row of affiliateRows) {
     const { first, last } = splitName(row.name);
     const payload = {
       firstName: first,
@@ -1032,29 +1683,127 @@ const linkAmbassadorSponsors = async (affiliateRows, ambassadorIdBySourceId) => 
     );
   }
 
-  await linkAmbassadorSponsors(rows, ambassadorIdBySourceId);
+  await linkAmbassadorSponsors(affiliateRows, ambassadorIdBySourceId);
 }
 
-// 2) Customers (distinct buyers from orders) → Twenty people
+const affiliateById = new Map(
+  affiliateRows.map((affiliate) => [String(affiliate.id), affiliate]),
+);
+const orderRows = await listOrders();
+
+// 3) Order months → Twenty Periods
 {
-  const rows = await listDistinctOrderEmails();
-  stats.customers.read = rows.length;
+  const rows = buildPeriodSummaries(orderRows);
+  stats.periods.read = rows.length;
+
+  for (const row of rows) {
+    const result = await upsertPeriod(row);
+    stats.periods[result.action] += 1;
+    periodIdByCode.set(row.periodCode, result.id);
+    log(`period ${row.periodCode} -> ${result.action}`);
+  }
+}
+
+// 4) Customers (distinct buyers from orders) → Twenty people + Customer profiles
+{
+  const rows = buildCustomerSummaries(orderRows);
+  stats.customerPeople.read = rows.length;
+  stats.customerProfiles.read = rows.length;
+
   for (const row of rows) {
     const payload = {
-      firstName: '',
-      lastName: '',
-      email: row.user_email,
-      firstOrderAt: row.first_seen,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      email: row.email,
+      firstOrderAt: row.firstOrderAt,
     };
-    const result = await upsertPerson({
+    const personResult = await upsertPerson({
       sourceSystem: 'supabase',
       sourceTable: 'orders',
-      sourceId: row.user_email.toLowerCase(),
+      sourceId: row.email,
       payload,
       jobTitle: 'Customer',
     });
-    stats.customers[result.action] += 1;
-    log(`customer ${row.user_email} -> ${result.action}`);
+    stats.customerPeople[personResult.action] += 1;
+
+    const referrerId = row.referrerAffiliateId
+      ? ambassadorIdBySourceId.get(String(row.referrerAffiliateId)) ??
+        (
+          await getSyncMap({
+            sourceSystem: 'supabase',
+            sourceTable: 'affiliates',
+            sourceId: row.referrerAffiliateId,
+            twentyObject: 'ambassador',
+          })
+        )?.twenty_record_id
+      : null;
+
+    const customerResult = await upsertCustomerProfile({
+      summary: row,
+      personId: personResult.id,
+      referrerId,
+    });
+    stats.customerProfiles[customerResult.action] += 1;
+    customerIdByEmail.set(row.email, customerResult.id);
+
+    log(
+      `customer ${row.email} -> person:${personResult.action} profile:${customerResult.action}`,
+    );
+  }
+}
+
+// 5) Orders → Twenty Orders linked to Customer, Ambassador, Product, Period
+{
+  stats.orders.read = orderRows.length;
+
+  for (const row of orderRows) {
+    const customerId = customerIdByEmail.get(normalizeEmail(row.user_email));
+    const referringAmbassadorId = directAffiliateIdFromOrder(row)
+      ? ambassadorIdBySourceId.get(String(directAffiliateIdFromOrder(row))) ??
+        (
+          await getSyncMap({
+            sourceSystem: 'supabase',
+            sourceTable: 'affiliates',
+            sourceId: directAffiliateIdFromOrder(row),
+            twentyObject: 'ambassador',
+          })
+        )?.twenty_record_id
+      : null;
+    const sourceProductId = singleProductIdFromOrder(row);
+    const productId = sourceProductId
+      ? productIdBySourceId.get(String(sourceProductId)) ??
+        (
+          await getSyncMap({
+            sourceSystem: 'supabase',
+            sourceTable: 'products',
+            sourceId: sourceProductId,
+            twentyObject: 'product',
+          })
+        )?.twenty_record_id
+      : null;
+    const periodCode = toMonthCode(row.created_at);
+    const periodId = periodCode
+      ? periodIdByCode.get(periodCode) ??
+        (
+          await getSyncMap({
+            sourceSystem: 'supabase',
+            sourceTable: 'order_periods',
+            sourceId: periodCode,
+            twentyObject: 'period',
+          })
+        )?.twenty_record_id
+      : null;
+
+    const result = await upsertOrderRecord({
+      row,
+      customerId,
+      referringAmbassadorId,
+      productId,
+      periodId,
+      affiliateById,
+    });
+    stats.orders[result.action] += 1;
+    log(`order ${row.id} -> ${result.action}`);
   }
 }
 
