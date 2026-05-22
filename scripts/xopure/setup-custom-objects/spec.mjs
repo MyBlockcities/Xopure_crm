@@ -158,6 +158,20 @@ const ambassador = {
     { name: 'emails', label: 'Emails', type: 'EMAILS', icon: 'IconMail' },
     { name: 'phones', label: 'Phones', type: 'PHONES', icon: 'IconPhone' },
     {
+      name: 'status',
+      label: 'Status',
+      type: 'SELECT',
+      icon: 'IconProgressCheck',
+      description: 'Supabase affiliate lifecycle status',
+      options: [
+        { label: 'Pending', value: 'PENDING', color: 'gray', position: 0 },
+        { label: 'Active', value: 'ACTIVE', color: 'green', position: 1 },
+        { label: 'Suspended', value: 'SUSPENDED', color: 'red', position: 2 },
+        { label: 'Inactive', value: 'INACTIVE', color: 'orange', position: 3 },
+      ],
+      defaultValue: "'PENDING'",
+    },
+    {
       name: 'path',
       label: 'Path',
       type: 'SELECT',
@@ -356,6 +370,18 @@ const order = {
 // Always declared as ONE_TO_MANY from the "one" side.
 
 const phase1Relations = [
+  // Person → Ambassador. Person remains the contact identity; Ambassador is the business profile.
+  {
+    relationType: 'ONE_TO_MANY',
+    from: { object: 'person',     name: 'ambassadorProfiles', label: 'Ambassador Profiles', icon: 'IconUserCheck' },
+    to:   { object: 'ambassador', name: 'person',              label: 'Person',              icon: 'IconUser' },
+  },
+  // Person → Customer. Person remains the contact identity; Customer is the buyer profile.
+  {
+    relationType: 'ONE_TO_MANY',
+    from: { object: 'person',   name: 'customerProfiles', label: 'Customer Profiles', icon: 'IconUserCircle' },
+    to:   { object: 'customer', name: 'person',           label: 'Person',            icon: 'IconUser' },
+  },
   // Ambassador (self-ref) — Ambassador has many mentees, each ambassador has one sponsor.
   {
     relationType: 'ONE_TO_MANY',
