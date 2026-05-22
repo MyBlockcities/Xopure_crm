@@ -7,15 +7,16 @@
 // Default PHASE=1.
 //
 // Auth: supports two modes —
-//   (a) TWENTY_API_KEY        UI-generated key, used as a Bearer token
-//   (b) TWENTY_APP_SECRET +
+//   (a) TWENTY_APP_SECRET +
 //       TWENTY_WORKSPACE_ID +
 //       TWENTY_API_KEY_ID     JWT mint with verify-side derivation
 //                             (workaround for v0.32.0 sign/verify mismatch
 //                              bug — see setup-project-management/index.mjs)
+//   (b) TWENTY_API_KEY        UI-generated key, used as a Bearer token
 //
-// The script tries (a) first if TWENTY_API_KEY is set; falls back to (b)
-// otherwise. If neither set, errors.
+// The script prefers the derived-token workaround when configured, because
+// UI-generated API keys are broken on the deployed v0.32.0 image. If neither
+// mode is configured, it errors.
 //
 // Always-required:
 //   TWENTY_SERVER_URL     e.g. https://crm.xopure.com
@@ -25,10 +26,45 @@
 //   DRY_RUN=1             Plan only — no writes.
 
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import process from 'node:process';
 import jwt from 'jsonwebtoken';
 
 import { PHASES } from './spec.mjs';
+
+const loadLocalEnv = () => {
+  const envUrl = new URL('../../../.env', import.meta.url);
+  if (!fs.existsSync(envUrl)) return;
+
+  const parsed = {};
+  for (const line of fs.readFileSync(envUrl, 'utf8').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const equalsIndex = line.indexOf('=');
+    if (equalsIndex === -1) continue;
+
+    const key = line.slice(0, equalsIndex).trim();
+    let value = line.slice(equalsIndex + 1).trim();
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    parsed[key] = value;
+  }
+
+  for (const [key, value] of Object.entries(parsed)) {
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+};
+
+loadLocalEnv();
 
 const env = (k) => {
   const v = process.env[k];
@@ -50,10 +86,7 @@ if (!Number.isInteger(TARGET_PHASE) || TARGET_PHASE < 1) {
 
 let token;
 let authMode;
-if (process.env.TWENTY_API_KEY) {
-  token = process.env.TWENTY_API_KEY;
-  authMode = 'api-key';
-} else if (
+if (
   process.env.TWENTY_APP_SECRET &&
   process.env.TWENTY_WORKSPACE_ID &&
   process.env.TWENTY_API_KEY_ID
@@ -72,10 +105,14 @@ if (process.env.TWENTY_API_KEY) {
     },
   );
   authMode = 'jwt-derived';
+} else if (process.env.TWENTY_API_KEY) {
+  token = process.env.TWENTY_API_KEY;
+  authMode = 'api-key';
 } else {
   console.error(
-    'Auth not configured. Set TWENTY_API_KEY, or set all of\n' +
-      '  TWENTY_APP_SECRET + TWENTY_WORKSPACE_ID + TWENTY_API_KEY_ID',
+    'Auth not configured. Set all of\n' +
+      '  TWENTY_APP_SECRET + TWENTY_WORKSPACE_ID + TWENTY_API_KEY_ID\n' +
+      'or set TWENTY_API_KEY.',
   );
   process.exit(1);
 }
