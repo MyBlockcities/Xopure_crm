@@ -68,7 +68,8 @@ The XO Pure template layer now provides:
 - Three read-only Supabase front components included in Live Operations when their installed
   app components can be resolved: `LiveMetricCounter`, `LiveActivityFeed`, and
   `RealtimeRevenueLineChart`. They use an RLS-scoped anon key, perform reads only, and refresh
-  after Realtime change notifications.
+  after Realtime change notifications. Their visual colors, spacing, borders, and typography
+  consume host-provided `twenty-sdk/ui` theme tokens for light/dark parity.
 
 Gauge support is incomplete upstream. The GraphQL configuration union, side-panel helpers, and
 standalone component exist, but the dashboard router intentionally returns invalid config and
@@ -108,6 +109,8 @@ No Supabase migration was applied and no Supabase data was mutated during this a
 - Ran `node --check scripts/xopure/sync-supabase-to-twenty/index.mjs`.
 - Ran `yarn lint` in `packages/twenty-apps/internal/xopure-crm`.
 - Ran `yarn twenty typecheck` in `packages/twenty-apps/internal/xopure-crm`.
+- Confirmed the new live components contain no fixed hex visual colors or `sans-serif`
+  fallbacks.
 - Attempted formatter execution; Yarn correctly failed because the checkout has no install
   state.
 - Confirmed the XO Pure app test command currently exits with "No test files found".

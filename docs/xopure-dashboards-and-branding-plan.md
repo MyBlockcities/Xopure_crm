@@ -237,8 +237,8 @@ Two deliberate data planes:
 
 ### Phase A3 — Visual polish ("flawless" layer) (2 days)
 
-- [ ] All custom widgets consume `twenty-ui/theme-constants` tokens — no hardcoded colors
-      (perfect light/dark parity).
+- [x] All custom live widgets consume host-provided `twenty-sdk/ui` theme tokens — no
+      hardcoded visual colors (light/dark parity).
 - [ ] Skeleton loaders, empty/error states (reuse `PageLayoutWidgetNoDataDisplay`), subtle
       entrance + number-tick animations on live values.
 - [ ] Responsive grid presets baked into templates so dashboards look intentional on first
