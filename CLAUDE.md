@@ -2,6 +2,25 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⛔ OPERATING LAW — SUPABASE IS READ-ONLY (NON-NEGOTIABLE)
+
+This is XO Pure CRM, a self-hosted fork of Twenty CRM. **Supabase is the read-only source of
+truth.** Every agent (Claude, Codex, any automation) and every script in this repository is
+**FORBIDDEN from writing to the Supabase database** under any circumstance.
+
+- NEVER apply migrations, run mutating SQL (`INSERT`/`UPDATE`/`DELETE`/`ALTER`/`DROP`),
+  invoke write RPCs, upsert rows, or run any tool/script in a mode that writes to Supabase.
+- Supabase access is **read-only**: REST must use `GET` only; direct Postgres connections must
+  request `default_transaction_read_only=on`. The sync script
+  (`scripts/xopure/sync-supabase-to-twenty/`) already enforces this — do not loosen it.
+- The ONLY job is to **READ from Supabase and keep the XO Pure Twenty CRM mirror in sync.**
+  Twenty-side Postgres writes (populating the CRM mirror) are allowed and intentional.
+- Any proposed Supabase schema or data change must remain a **local, reviewable artifact**
+  (e.g. under `supabase/migrations/`) until Brian explicitly deploys it outside this workflow.
+  Generating a proposal file is allowed; applying it is not.
+
+If a task seems to require writing to Supabase, STOP and surface it instead of proceeding.
+
 ## Project Overview
 
 Twenty is an open-source CRM built with modern technologies in a monorepo structure. The codebase is organized as an Nx workspace with multiple packages.

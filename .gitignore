@@ -55,3 +55,7 @@ TRANSLATION_QA_REPORT.md
 .playwright-mcp/
 .playwright-cli/
 output/playwright/
+
+# XO Pure — business binary and personal editor config, kept out of version control
+XO_Pure_Comp_Plan - Final.pdf
+scripts/xopure/sync-supabase-to-twenty/xopure_crm.code-workspace
