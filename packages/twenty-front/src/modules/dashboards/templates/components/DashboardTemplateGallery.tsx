@@ -4,8 +4,36 @@ import { useState } from 'react';
 import { DASHBOARD_TEMPLATES } from '@/dashboards/templates/constants/DashboardTemplates';
 import { type DashboardTemplate } from '@/dashboards/templates/types/DashboardTemplate';
 import { useInstantiateDashboardTemplate } from '@/dashboards/templates/hooks/useInstantiateDashboardTemplate';
+import { useLingui } from '@lingui/react/macro';
+import { Button } from 'twenty-ui/input';
 import { useIcons } from 'twenty-ui/display';
 import { isDefined } from 'twenty-shared/utils';
+
+const StyledHeader = styled.div`
+  align-items: center;
+  border-bottom: 1px solid ${({ theme }) => theme.border.color.light};
+  display: flex;
+  gap: ${({ theme }) => theme.spacing(4)};
+  justify-content: space-between;
+  padding: ${({ theme }) => theme.spacing(4)};
+`;
+
+const StyledHeaderText = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing(1)};
+`;
+
+const StyledHeaderTitle = styled.span`
+  color: ${({ theme }) => theme.font.color.primary};
+  font-size: ${({ theme }) => theme.font.size.md};
+  font-weight: ${({ theme }) => theme.font.weight.semiBold};
+`;
+
+const StyledHeaderSubtitle = styled.span`
+  color: ${({ theme }) => theme.font.color.tertiary};
+  font-size: ${({ theme }) => theme.font.size.sm};
+`;
 
 const StyledGrid = styled.div`
   display: grid;
@@ -60,14 +88,19 @@ const StyledDescription = styled.span`
 `;
 
 export const DashboardTemplateGallery = () => {
+  const { t } = useLingui();
   const { getIcon } = useIcons();
-  const { instantiateDashboardTemplate } = useInstantiateDashboardTemplate();
+  const { instantiateDashboardTemplate, instantiateAllDashboardTemplates } =
+    useInstantiateDashboardTemplate();
   const [pendingTemplateKey, setPendingTemplateKey] = useState<string | null>(
     null,
   );
+  const [isCreatingAll, setIsCreatingAll] = useState(false);
+
+  const isBusy = isDefined(pendingTemplateKey) || isCreatingAll;
 
   const handleSelectTemplate = async (template: DashboardTemplate) => {
-    if (isDefined(pendingTemplateKey)) {
+    if (isBusy) {
       return;
     }
 
@@ -80,29 +113,63 @@ export const DashboardTemplateGallery = () => {
     }
   };
 
-  return (
-    <StyledGrid>
-      {DASHBOARD_TEMPLATES.map((template) => {
-        const TemplateIcon = getIcon(template.icon);
-        const isPending = pendingTemplateKey === template.key;
+  const handleCreateAll = async () => {
+    if (isBusy) {
+      return;
+    }
 
-        return (
-          <StyledCard
-            key={template.key}
-            type="button"
-            disabled={isDefined(pendingTemplateKey)}
-            onClick={() => handleSelectTemplate(template)}
-          >
-            <StyledIconContainer>
-              {isDefined(TemplateIcon) ? <TemplateIcon size={20} /> : null}
-            </StyledIconContainer>
-            <StyledTitle>
-              {isPending ? `${template.name}…` : template.name}
-            </StyledTitle>
-            <StyledDescription>{template.description}</StyledDescription>
-          </StyledCard>
-        );
-      })}
-    </StyledGrid>
+    setIsCreatingAll(true);
+
+    try {
+      await instantiateAllDashboardTemplates();
+    } finally {
+      setIsCreatingAll(false);
+    }
+  };
+
+  return (
+    <>
+      <StyledHeader>
+        <StyledHeaderText>
+          <StyledHeaderTitle>{t`Dashboard templates`}</StyledHeaderTitle>
+          <StyledHeaderSubtitle>
+            {t`Create one board, or seed all ${DASHBOARD_TEMPLATES.length} at once.`}
+          </StyledHeaderSubtitle>
+        </StyledHeaderText>
+        <Button
+          variant="primary"
+          accent="blue"
+          size="small"
+          Icon={getIcon('IconLayoutGrid')}
+          title={t`Create all dashboards`}
+          isLoading={isCreatingAll}
+          disabled={isBusy}
+          onClick={handleCreateAll}
+        />
+      </StyledHeader>
+      <StyledGrid>
+        {DASHBOARD_TEMPLATES.map((template) => {
+          const TemplateIcon = getIcon(template.icon);
+          const isPending = pendingTemplateKey === template.key;
+
+          return (
+            <StyledCard
+              key={template.key}
+              type="button"
+              disabled={isBusy}
+              onClick={() => handleSelectTemplate(template)}
+            >
+              <StyledIconContainer>
+                {isDefined(TemplateIcon) ? <TemplateIcon size={20} /> : null}
+              </StyledIconContainer>
+              <StyledTitle>
+                {isPending ? `${template.name}…` : template.name}
+              </StyledTitle>
+              <StyledDescription>{template.description}</StyledDescription>
+            </StyledCard>
+          );
+        })}
+      </StyledGrid>
+    </>
   );
 };
