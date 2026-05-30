@@ -186,8 +186,8 @@ export const Authorize = () => {
       <StyledCardWrapper>
         <StyledAppsContainer>
           <img
-            src="/images/integrations/twenty-logo.svg"
-            alt="twenty-icon"
+            src="/images/icons/android/android-launchericon-192-192.png"
+            alt="XO Pure icon"
             height={40}
             width={40}
           />

@@ -41,8 +41,9 @@
 - [x] Confirmed the existing dashboard-template work is local and uncommitted. The current
       builder supports bar graphs, record tables, and front components; the next implementation
       milestone is complete visualization coverage plus a visible gallery entry point.
-- [x] Confirmed local verification constraints: repository-root dependencies are not installed
-      and the current shell is Node `v20.19.5`, while the monorepo requires Node `^24.5.0`.
+- [x] Confirmed local verification constraints: the monorepo requires Node `^24.5.0`.
+      Node `24.5.0` is now installed locally, but repository-root dependencies remain
+      unrestored because the local volume cannot complete Yarn's immutable link step.
 - [x] Found and removed Supabase `crm_sync_map` mutation paths from the sync script. REST now
       rejects non-`GET` requests, direct Supabase PostgreSQL connections request
       `default_transaction_read_only=on`, and compatibility map writes are skipped.
@@ -59,14 +60,26 @@
 - [x] Re-ran the locally available widget validation path: XO Pure app lint,
       XO Pure app typecheck, diff whitespace check, sync script syntax check,
       fixed-color scan, and Supabase mutation-pattern scan are clean.
-- [x] Confirmed the repository requires Node `24.5.0`; the runtime is not
-      installed locally and repository-root dependencies are not restored yet.
+- [x] Confirmed the repository requires Node `24.5.0`; repository-root
+      dependencies were not restored in the checkout.
 - [x] Installed the required Node `24.5.0` runtime locally.
 - [x] Cleared Yarn's disposable global package cache after the first immutable
       install exposed local disk pressure, raising free space from `3.4 GiB`
       to `9.8 GiB` without touching source files.
-- [ ] Restore repository-root dependencies, regenerate Lingui catalogs, and
-      run the focused root-level validation suite.
+- [x] Retried `yarn install --immutable`; Yarn fetched `4,967` packages
+      (`2.84 GiB`) but the link step failed with `ENOSPC` while persisting
+      root `node_modules`. Removed only the partial generated install artifacts
+      and cleared the disposable Yarn cache again.
+- [x] Re-ran the available app-scoped safety suite against the enriched native
+      dashboard `HEAD`: diff whitespace check, sync-script syntax check,
+      Supabase mutation-pattern scan, live-widget fixed-color scan, XO Pure app
+      lint, and XO Pure app typecheck are clean.
+- [x] Reviewed the nine committed native dashboard templates against
+      `scripts/xopure/setup-custom-objects/spec.mjs`; the committed resolver test
+      covers every shipped template field and guards against silently skipped
+      cards once root Jest is available.
+- [ ] Free additional local disk capacity, restore repository-root dependencies,
+      regenerate Lingui catalogs, and run the focused root-level validation suite.
 
 ---
 
@@ -250,8 +263,9 @@ cards: [`xopure-dashboard-widget-ideas.md`](./xopure-dashboard-widget-ideas.md).
 - [x] `yarn lint` in `packages/twenty-apps/internal/xopure-crm`
 - [x] `yarn twenty typecheck` in `packages/twenty-apps/internal/xopure-crm`
 - [ ] Run focused Jest, TypeScript, and formatter checks after installing repository-root
-      dependencies under the required Node `^24.5.0`. Current checkout has neither
-      `node_modules` nor `.pnp.cjs`, so `yarn exec prettier --check ...` cannot resolve packages.
+      dependencies under the required Node `^24.5.0`. Node `24.5.0` is installed,
+      but `yarn install --immutable` currently fails with `ENOSPC` during the root
+      `node_modules` link step; generated partial artifacts were removed.
 
 ### Phase A2 — Supabase Realtime live widgets (3–5 days)
 

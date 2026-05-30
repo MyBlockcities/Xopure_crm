@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { themeCssVariables } from 'twenty-sdk/ui';
+import { AnimatedEaseIn, themeCssVariables } from 'twenty-sdk/ui';
+import {
+  LiveWidgetSkeleton,
+  LiveWidgetStatus,
+} from 'src/front-components/components/live-widget-state';
 import { useReadOnlySupabaseClient } from 'src/front-components/hooks/use-read-only-supabase-client';
 import { getErrorMessage } from 'src/front-components/utils/get-error-message';
 
@@ -24,10 +28,12 @@ export const LiveActivityFeed = () => {
   const { supabase, configurationError } = useReadOnlySupabaseClient();
   const [activities, setActivities] = useState<OrderActivity[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!supabase) {
       setErrorMessage(configurationError);
+      setIsLoading(false);
       return;
     }
 
@@ -46,11 +52,13 @@ export const LiveActivityFeed = () => {
 
       if (error) {
         setErrorMessage(getErrorMessage(error));
+        setIsLoading(false);
         return;
       }
 
       setActivities(data ?? []);
       setErrorMessage(null);
+      setIsLoading(false);
     };
 
     void refreshActivities();
@@ -93,45 +101,33 @@ export const LiveActivityFeed = () => {
       >
         Live order activity
       </strong>
-      {errorMessage ? (
-        <span
-          style={{
-            color: themeCssVariables.color.red,
-            fontFamily: themeCssVariables.font.family,
-            fontSize: themeCssVariables.font.size.xs,
-          }}
-        >
-          {errorMessage}
-        </span>
+      {isLoading ? (
+        <LiveWidgetSkeleton />
+      ) : errorMessage ? (
+        <LiveWidgetStatus kind="error" text={errorMessage} />
       ) : activities.length === 0 ? (
-        <span
-          style={{
-            color: themeCssVariables.font.color.tertiary,
-            fontFamily: themeCssVariables.font.family,
-            fontSize: themeCssVariables.font.size.xs,
-          }}
-        >
-          No orders available.
-        </span>
+        <LiveWidgetStatus kind="empty" text="No orders available" />
       ) : (
-        activities.map((activity) => (
-          <div
-            key={activity.id}
-            style={{
-              borderBottom: `1px solid ${themeCssVariables.border.color.light}`,
-              display: 'flex',
-              fontFamily: themeCssVariables.font.family,
-              fontSize: themeCssVariables.font.size.xs,
-              justifyContent: 'space-between',
-              paddingBottom: '8px',
-            }}
-          >
-            <span>
-              {activity.payment_status ?? 'PENDING'} - {activity.id.slice(0, 8)}
-            </span>
-            <span>{formatOrderAmount(activity.total_cents)}</span>
-          </div>
-        ))
+        <AnimatedEaseIn duration="fast">
+          {activities.map((activity) => (
+            <div
+              key={activity.id}
+              style={{
+                borderBottom: `1px solid ${themeCssVariables.border.color.light}`,
+                display: 'flex',
+                fontFamily: themeCssVariables.font.family,
+                fontSize: themeCssVariables.font.size.xs,
+                justifyContent: 'space-between',
+                paddingBottom: themeCssVariables.spacing[2],
+              }}
+            >
+              <span>
+                {activity.payment_status ?? 'PENDING'} - {activity.id.slice(0, 8)}
+              </span>
+              <span>{formatOrderAmount(activity.total_cents)}</span>
+            </div>
+          ))}
+        </AnimatedEaseIn>
       )}
     </div>
   );

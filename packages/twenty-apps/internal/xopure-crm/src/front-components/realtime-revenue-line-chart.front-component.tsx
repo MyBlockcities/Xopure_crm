@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { themeCssVariables } from 'twenty-sdk/ui';
+import { AnimatedEaseIn, themeCssVariables } from 'twenty-sdk/ui';
+import {
+  LiveWidgetSkeleton,
+  LiveWidgetStatus,
+} from 'src/front-components/components/live-widget-state';
 import { useReadOnlySupabaseClient } from 'src/front-components/hooks/use-read-only-supabase-client';
+import { useAnimatedNumber } from 'src/front-components/hooks/use-animated-number';
 import { getErrorMessage } from 'src/front-components/utils/get-error-message';
 
 export const XOPURE_REALTIME_REVENUE_LINE_CHART_FRONT_COMPONENT_UNIVERSAL_IDENTIFIER =
@@ -20,10 +25,12 @@ export const RealtimeRevenueLineChart = () => {
   const { supabase, configurationError } = useReadOnlySupabaseClient();
   const [orders, setOrders] = useState<OrderRevenue[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!supabase) {
       setErrorMessage(configurationError);
+      setIsLoading(false);
       return;
     }
 
@@ -42,11 +49,13 @@ export const RealtimeRevenueLineChart = () => {
 
       if (error) {
         setErrorMessage(getErrorMessage(error));
+        setIsLoading(false);
         return;
       }
 
       setOrders([...(data ?? [])].reverse());
       setErrorMessage(null);
+      setIsLoading(false);
     };
 
     void refreshOrders();
@@ -87,6 +96,7 @@ export const RealtimeRevenueLineChart = () => {
     (sum, order) => sum + (order.total_cents ?? 0),
     0,
   );
+  const animatedTotalRevenue = useAnimatedNumber(totalRevenue);
 
   return (
     <div
@@ -110,54 +120,46 @@ export const RealtimeRevenueLineChart = () => {
       >
         Realtime revenue - latest {orders.length} orders
       </span>
-      <strong
-        style={{
-          fontFamily: themeCssVariables.font.family,
-          fontSize: themeCssVariables.font.size.xl,
-        }}
-      >
-        {new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: 'USD',
-        }).format(totalRevenue / 100)}
-      </strong>
-      {errorMessage ? (
-        <span
-          style={{
-            color: themeCssVariables.color.red,
-            fontFamily: themeCssVariables.font.family,
-            fontSize: themeCssVariables.font.size.xs,
-          }}
-        >
-          {errorMessage}
-        </span>
-      ) : orders.length === 0 ? (
-        <span
-          style={{
-            color: themeCssVariables.font.color.tertiary,
-            fontFamily: themeCssVariables.font.family,
-            fontSize: themeCssVariables.font.size.xs,
-          }}
-        >
-          No orders available.
-        </span>
+      {isLoading ? (
+        <LiveWidgetSkeleton rows={2} />
       ) : (
-        <svg
-          aria-label="Realtime revenue trend"
-          preserveAspectRatio="none"
-          role="img"
-          viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-          style={{ height: '120px', overflow: 'visible', width: '100%' }}
-        >
-          <polyline
-            fill="none"
-            points={points}
-            stroke={themeCssVariables.color.blue}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="4"
-          />
-        </svg>
+        <>
+          <strong
+            style={{
+              fontFamily: themeCssVariables.font.family,
+              fontSize: themeCssVariables.font.size.xl,
+            }}
+          >
+            {new Intl.NumberFormat('en-US', {
+              style: 'currency',
+              currency: 'USD',
+            }).format((animatedTotalRevenue ?? totalRevenue) / 100)}
+          </strong>
+          {errorMessage ? (
+            <LiveWidgetStatus kind="error" text={errorMessage} />
+          ) : orders.length === 0 ? (
+            <LiveWidgetStatus kind="empty" text="No orders available" />
+          ) : (
+            <AnimatedEaseIn duration="fast">
+              <svg
+                aria-label="Realtime revenue trend"
+                preserveAspectRatio="none"
+                role="img"
+                viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+                style={{ height: '120px', overflow: 'visible', width: '100%' }}
+              >
+                <polyline
+                  fill="none"
+                  points={points}
+                  stroke={themeCssVariables.color.blue}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="4"
+                />
+              </svg>
+            </AnimatedEaseIn>
+          )}
+        </>
       )}
     </div>
   );

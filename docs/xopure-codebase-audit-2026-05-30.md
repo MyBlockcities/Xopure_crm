@@ -69,7 +69,11 @@ The XO Pure template layer now provides:
   app components can be resolved: `LiveMetricCounter`, `LiveActivityFeed`, and
   `RealtimeRevenueLineChart`. They use an RLS-scoped anon key, perform reads only, and refresh
   after Realtime change notifications. Their visual colors, spacing, borders, and typography
-  consume host-provided `twenty-sdk/ui` theme tokens for light/dark parity.
+  consume host-provided `twenty-sdk/ui` theme tokens for light/dark parity. Shared app-local
+  state primitives provide themed loading skeletons and empty/error pills; live count and
+  revenue totals interpolate on refresh.
+- Dashboard templates provide deliberate half-width and full-width desktop positions. The host
+  converts them into one-column mobile layouts through `convertPageLayoutToTabLayouts`.
 
 Gauge support is incomplete upstream. The GraphQL configuration union, side-panel helpers, and
 standalone component exist, but the dashboard router intentionally returns invalid config and
@@ -121,6 +125,10 @@ No Supabase migration was applied and no Supabase data was mutated during this a
 
 - Runtime smoke-test dashboard creation and the template-gallery modal.
 - Restore Node `^24.5.0` plus repository dependencies and run focused tests/typecheck.
+- Regenerate Lingui catalogs after the XO Pure source-copy sweep.
+- Replace remaining upstream links after confirming XO Pure app, marketing, legal, docs,
+  releases, GitHub, and hosted email-logo destinations.
+- Confirm final XO Pure artwork for the existing deployment overlay.
 - Move durable sync bookkeeping into Twenty rather than Supabase.
 - Consolidate the two XO Pure CRM object models.
 - Design the persisted gauge goal/range contract before enabling gauge cards in starter

@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { themeCssVariables } from 'twenty-sdk/ui';
+import { AnimatedEaseIn, themeCssVariables } from 'twenty-sdk/ui';
+import {
+  LiveWidgetSkeleton,
+  LiveWidgetStatus,
+} from 'src/front-components/components/live-widget-state';
 import { useReadOnlySupabaseClient } from 'src/front-components/hooks/use-read-only-supabase-client';
+import { useAnimatedNumber } from 'src/front-components/hooks/use-animated-number';
 import { getErrorMessage } from 'src/front-components/utils/get-error-message';
 import { getLiveMetricTable } from 'src/front-components/utils/get-live-metric-table';
 
@@ -18,6 +23,7 @@ export const LiveMetricCounter = () => {
     useState<ConnectionState>('connecting');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const animatedCount = useAnimatedNumber(count);
 
   useEffect(() => {
     if (!supabase) {
@@ -97,33 +103,39 @@ export const LiveMetricCounter = () => {
       >
         Live {table}
       </span>
-      <strong
-        aria-live="polite"
-        style={{
-          color: themeCssVariables.font.color.primary,
-          fontFamily: themeCssVariables.font.family,
-          fontSize: themeCssVariables.font.size.xxl,
-          fontWeight: 600,
-          lineHeight: 1,
-        }}
-      >
-        {count ?? '-'}
-      </strong>
-      <span
-        style={{
-          color:
-            connectionState === 'error'
-              ? themeCssVariables.color.red
-              : themeCssVariables.font.color.tertiary,
-          fontFamily: themeCssVariables.font.family,
-          fontSize: themeCssVariables.font.size.xs,
-        }}
-      >
-        {errorMessage ??
+      {count === null && !errorMessage ? (
+        <LiveWidgetSkeleton rows={1} showStatus={false} />
+      ) : (
+        <AnimatedEaseIn duration="fast">
+          <strong
+            aria-live="polite"
+            style={{
+              color: themeCssVariables.font.color.primary,
+              fontFamily: themeCssVariables.font.family,
+              fontSize: themeCssVariables.font.size.xxl,
+              fontWeight: 600,
+              lineHeight: 1,
+            }}
+          >
+            {animatedCount ?? '-'}
+          </strong>
+        </AnimatedEaseIn>
+      )}
+      <LiveWidgetStatus
+        kind={
+          connectionState === 'error'
+            ? 'error'
+            : connectionState === 'live'
+              ? 'live'
+              : 'loading'
+        }
+        text={
+          errorMessage ??
           (connectionState === 'live'
             ? `Realtime connected${lastUpdatedAt ? ` - updated ${lastUpdatedAt.toLocaleTimeString()}` : ''}`
-            : 'Connecting to realtime updates...')}
-      </span>
+            : 'Connecting to realtime updates...')
+        }
+      />
     </div>
   );
 };
