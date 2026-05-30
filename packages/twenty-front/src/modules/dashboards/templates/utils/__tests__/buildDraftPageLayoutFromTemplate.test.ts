@@ -315,6 +315,11 @@ describe('shipped DASHBOARD_TEMPLATES resolve against the deployed object model'
       'enrolledAt',
       'subscriptionStatus',
       'acquisitionSource',
+      'isActive',
+      'lifetimeCV',
+      'lifetimeSpend',
+      'orderCount',
+      'lastOrderAt',
     ],
     xoOrder: [
       'id',

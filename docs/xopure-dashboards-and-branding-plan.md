@@ -236,8 +236,10 @@ cards: [`xopure-dashboard-widget-ideas.md`](./xopure-dashboard-widget-ideas.md).
       stage funnel (as bar), acquisition-source and path mix.
 - [x] **Product Performance** (11 cards): catalog mix by category/format, pricing & CV, active /
       commission-eligible shares, units sold.
-- [x] Nine templates total, all surfaced automatically in the gallery; builder unit test asserts
-      every shipped template resolves all cards against the deployed object model.
+- [x] Enriched the three thin starter templates to full native dashboards (Ambassador Growth
+      4→12 cards, Customer 360 4→9, Revenue & Orders 4→11).
+- [x] **103 native cards across nine templates**, all surfaced automatically in the gallery;
+      builder unit test asserts every shipped template resolves all cards against the deployed model.
 - [ ] Verify the admin templates end-to-end in the running app (create from gallery → cards render).
 - [ ] Pending portal templates *Ambassador · My Business* and *Customer · My XO Pure* (after D2).
 
@@ -477,6 +479,9 @@ portal templates *Ambassador · My Business* and *Customer · My XO Pure* (after
 
 ## 7. Change log
 
+- 2026-05-30 — Enriched the three thin starter templates to full native dashboards
+  (Ambassador Growth 4→12 cards, Customer 360 4→9, Revenue & Orders 4→11) using the verified
+  Phase-1 field set — **103 native cards across nine templates** now.
 - 2026-05-30 — Scaffolded five native admin dashboard templates in `DashboardTemplates.ts`
   (Mission Control I & II, Compliance & Risk Command, Recruiting & Onboarding, Product
   Performance) — nine templates total, all gallery-discoverable. Added a builder unit test
