@@ -7,6 +7,7 @@ import {
 import {
   type AggregateChartConfiguration,
   type BarChartConfiguration,
+  type GaugeChartConfiguration,
   type LineChartConfiguration,
   type PieChartConfiguration,
 } from '~/generated-metadata/graphql';
@@ -19,6 +20,7 @@ export const useGraphWidgetQueryCommon = ({
   configuration:
     | BarChartConfiguration
     | AggregateChartConfiguration
+    | GaugeChartConfiguration
     | LineChartConfiguration
     | PieChartConfiguration;
 }) => {

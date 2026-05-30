@@ -1,4 +1,8 @@
 import { RecordIndexCommandMenu } from '@/command-menu-item/components/RecordIndexCommandMenu';
+import {
+  DASHBOARD_TEMPLATE_GALLERY_MODAL_ID,
+  DashboardTemplateGalleryModal,
+} from '@/dashboards/templates/components/DashboardTemplateGalleryModal';
 import { SidePanelToggleButton } from '@/side-panel/components/SidePanelToggleButton';
 import { MAIN_CONTEXT_STORE_INSTANCE_ID } from '@/context-store/constants/MainContextStoreInstanceId';
 import { contextStoreCurrentViewIdComponentState } from '@/context-store/states/contextStoreCurrentViewIdComponentState';
@@ -7,12 +11,16 @@ import { isLayoutCustomizationModeEnabledState } from '@/layout-customization/st
 import { useFilteredObjectMetadataItems } from '@/object-metadata/hooks/useFilteredObjectMetadataItems';
 import { RecordIndexPageHeaderIcon } from '@/object-record/record-index/components/RecordIndexPageHeaderIcon';
 import { useRecordIndexContextOrThrow } from '@/object-record/record-index/contexts/RecordIndexContext';
+import { useModal } from '@/ui/layout/modal/hooks/useModal';
 import { PageHeader } from '@/ui/layout/page/components/PageHeader';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { isDefined } from 'twenty-shared/utils';
+import { CoreObjectNameSingular } from 'twenty-shared/types';
+import { IconTemplate } from 'twenty-ui/display';
+import { Button } from 'twenty-ui/input';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledTitleWithSelectedRecords = styled.div`
@@ -32,6 +40,7 @@ const StyledSelectedRecordsCount = styled.div`
 `;
 
 export const RecordIndexPageHeader = () => {
+  const { openModal } = useModal();
   const { findObjectMetadataItemByNamePlural } =
     useFilteredObjectMetadataItems();
 
@@ -66,6 +75,8 @@ export const RecordIndexPageHeader = () => {
   const isLayoutCustomizationModeEnabled = useAtomStateValue(
     isLayoutCustomizationModeEnabledState,
   );
+  const isDashboardIndex =
+    objectMetadataItem?.nameSingular === CoreObjectNameSingular.Dashboard;
 
   return (
     <PageHeader
@@ -77,6 +88,20 @@ export const RecordIndexPageHeader = () => {
       {isDefined(contextStoreCurrentViewId) && (
         <>
           <RecordIndexCommandMenu />
+          {isDashboardIndex && (
+            <>
+              <Button
+                size="small"
+                variant="secondary"
+                title={t`Create from template`}
+                Icon={IconTemplate}
+                onClick={() => {
+                  openModal(DASHBOARD_TEMPLATE_GALLERY_MODAL_ID);
+                }}
+              />
+              <DashboardTemplateGalleryModal />
+            </>
+          )}
           {!isLayoutCustomizationModeEnabled && <SidePanelToggleButton />}
         </>
       )}
