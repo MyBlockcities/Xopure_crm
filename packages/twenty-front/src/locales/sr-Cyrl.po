@@ -2860,10 +2860,10 @@ msgstr ""
 msgid "by {author}"
 msgstr ""
 
-#. js-lingui-id: 8Pfllj
+#. js-lingui-id: goCWf6
 #: src/modules/auth/sign-in-up/components/FooterNote.tsx
-msgid "By using Twenty, you agree to the"
-msgstr "Коришћењем Twenty, слажете се са"
+msgid "By using XO Pure, you agree to the"
+msgstr ""
 
 #. js-lingui-id: Yx41df
 #: src/modules/auth/sign-in-up/components/FooterNote.tsx
@@ -4237,6 +4237,11 @@ msgstr "Креирајте прилагођени приказ"
 msgid "Create date field"
 msgstr "Креирај поље за датум"
 
+#. js-lingui-id: bjGeoV
+#: src/modules/object-record/record-index/components/RecordIndexPageHeader.tsx
+msgid "Create from template"
+msgstr ""
+
 #. js-lingui-id: vY2Gfm
 #: src/modules/views/view-picker/components/ViewPickerCreateButton.tsx
 msgid "Create new view"
@@ -4657,6 +4662,11 @@ msgstr "Дански"
 #: src/modules/ui/navigation/navigation-drawer/components/MultiWorkspaceDropdown/internal/MultiWorkspaceDropdownThemesComponents.tsx
 msgid "Dark"
 msgstr "Тамни"
+
+#. js-lingui-id: HC1Vhh
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Dashboard created from template"
+msgstr ""
 
 #. js-lingui-id: ogQzcZ
 #: src/modules/command-menu-item/engine-command/record/single-record/dashboard/components/DuplicateDashboardSingleRecordCommand.tsx
@@ -6836,6 +6846,11 @@ msgstr "Није успело додавање модела"
 msgid "Failed to add provider"
 msgstr "Није успело додавање провајдера"
 
+#. js-lingui-id: JkG3uG
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Failed to create dashboard from template"
+msgstr ""
+
 #. js-lingui-id: WM7GKt
 #: src/pages/settings/ai/SettingsAI.tsx
 msgid "Failed to create tool"
@@ -6905,6 +6920,11 @@ msgstr "Спајање записа није успело. Покушајте п
 #: src/modules/ai/components/RoutingDebugDisplay.tsx
 msgid "Failed to parse context: {contextValue}"
 msgstr "Није успело рашчлањивање контекста: {contextValue}"
+
+#. js-lingui-id: 1b+PsA
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Failed to populate dashboard template"
+msgstr ""
 
 #. js-lingui-id: 3m7+J/
 #: src/pages/settings/admin-panel/SettingsAdminWorkspacesStatus.tsx
@@ -14636,10 +14656,10 @@ msgstr "Синхронизујте са Google-ом"
 msgid "Sync with Outlook"
 msgstr "Синхронизујте са Outlook-ом"
 
-#. js-lingui-id: +9x4tK
+#. js-lingui-id: IY6NLm
 #: src/pages/onboarding/SyncEmails.tsx
-msgid "Sync your Emails and Calendar with Twenty. Choose your privacy settings."
-msgstr "Синхронизујте своје имејлове и календар са Twenty. Изаберите ваша подешавања приватности."
+msgid "Sync your Emails and Calendar with XO Pure. Choose your privacy settings."
+msgstr ""
 
 #. js-lingui-id: N2FcBE
 #: src/modules/settings/accounts/components/SettingsAccountsConnectedAccountsRowRightContainer.tsx
@@ -16804,10 +16824,10 @@ msgstr ""
 msgid "Weight"
 msgstr ""
 
-#. js-lingui-id: nTuObL
+#. js-lingui-id: yF+7Uv
 #: src/pages/auth/SignInUp.tsx
-msgid "Welcome to Twenty"
-msgstr "Добродошли у Twenty"
+msgid "Welcome to XO Pure"
+msgstr ""
 
 #. js-lingui-id: t8ZvkC
 #: src/pages/auth/SignInUp.tsx

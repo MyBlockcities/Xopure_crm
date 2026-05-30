@@ -2855,9 +2855,9 @@ msgstr ""
 msgid "by {author}"
 msgstr ""
 
-#. js-lingui-id: 8Pfllj
+#. js-lingui-id: goCWf6
 #: src/modules/auth/sign-in-up/components/FooterNote.tsx
-msgid "By using Twenty, you agree to the"
+msgid "By using XO Pure, you agree to the"
 msgstr ""
 
 #. js-lingui-id: Yx41df
@@ -4232,6 +4232,11 @@ msgstr ""
 msgid "Create date field"
 msgstr ""
 
+#. js-lingui-id: bjGeoV
+#: src/modules/object-record/record-index/components/RecordIndexPageHeader.tsx
+msgid "Create from template"
+msgstr ""
+
 #. js-lingui-id: vY2Gfm
 #: src/modules/views/view-picker/components/ViewPickerCreateButton.tsx
 msgid "Create new view"
@@ -4651,6 +4656,11 @@ msgstr ""
 #: src/pages/settings/profile/appearance/components/SettingsExperience.tsx
 #: src/modules/ui/navigation/navigation-drawer/components/MultiWorkspaceDropdown/internal/MultiWorkspaceDropdownThemesComponents.tsx
 msgid "Dark"
+msgstr ""
+
+#. js-lingui-id: HC1Vhh
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Dashboard created from template"
 msgstr ""
 
 #. js-lingui-id: ogQzcZ
@@ -6831,6 +6841,11 @@ msgstr ""
 msgid "Failed to add provider"
 msgstr ""
 
+#. js-lingui-id: JkG3uG
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Failed to create dashboard from template"
+msgstr ""
+
 #. js-lingui-id: WM7GKt
 #: src/pages/settings/ai/SettingsAI.tsx
 msgid "Failed to create tool"
@@ -6899,6 +6914,11 @@ msgstr ""
 #. js-lingui-id: PnVGrE
 #: src/modules/ai/components/RoutingDebugDisplay.tsx
 msgid "Failed to parse context: {contextValue}"
+msgstr ""
+
+#. js-lingui-id: 1b+PsA
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Failed to populate dashboard template"
 msgstr ""
 
 #. js-lingui-id: 3m7+J/
@@ -14631,9 +14651,9 @@ msgstr ""
 msgid "Sync with Outlook"
 msgstr ""
 
-#. js-lingui-id: +9x4tK
+#. js-lingui-id: IY6NLm
 #: src/pages/onboarding/SyncEmails.tsx
-msgid "Sync your Emails and Calendar with Twenty. Choose your privacy settings."
+msgid "Sync your Emails and Calendar with XO Pure. Choose your privacy settings."
 msgstr ""
 
 #. js-lingui-id: N2FcBE
@@ -16797,9 +16817,9 @@ msgstr ""
 msgid "Weight"
 msgstr ""
 
-#. js-lingui-id: nTuObL
+#. js-lingui-id: yF+7Uv
 #: src/pages/auth/SignInUp.tsx
-msgid "Welcome to Twenty"
+msgid "Welcome to XO Pure"
 msgstr ""
 
 #. js-lingui-id: t8ZvkC

@@ -2855,10 +2855,10 @@ msgstr "Bundled with {applicationName}"
 msgid "by {author}"
 msgstr "by {author}"
 
-#. js-lingui-id: 8Pfllj
+#. js-lingui-id: goCWf6
 #: src/modules/auth/sign-in-up/components/FooterNote.tsx
-msgid "By using Twenty, you agree to the"
-msgstr "By using Twenty, you agree to the"
+msgid "By using XO Pure, you agree to the"
+msgstr "By using XO Pure, you agree to the"
 
 #. js-lingui-id: Yx41df
 #: src/modules/auth/sign-in-up/components/FooterNote.tsx
@@ -4232,6 +4232,11 @@ msgstr "Create custom view"
 msgid "Create date field"
 msgstr "Create date field"
 
+#. js-lingui-id: bjGeoV
+#: src/modules/object-record/record-index/components/RecordIndexPageHeader.tsx
+msgid "Create from template"
+msgstr "Create from template"
+
 #. js-lingui-id: vY2Gfm
 #: src/modules/views/view-picker/components/ViewPickerCreateButton.tsx
 msgid "Create new view"
@@ -4652,6 +4657,11 @@ msgstr "Danish"
 #: src/modules/ui/navigation/navigation-drawer/components/MultiWorkspaceDropdown/internal/MultiWorkspaceDropdownThemesComponents.tsx
 msgid "Dark"
 msgstr "Dark"
+
+#. js-lingui-id: HC1Vhh
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Dashboard created from template"
+msgstr "Dashboard created from template"
 
 #. js-lingui-id: ogQzcZ
 #: src/modules/command-menu-item/engine-command/record/single-record/dashboard/components/DuplicateDashboardSingleRecordCommand.tsx
@@ -6831,6 +6841,11 @@ msgstr "Failed to add model"
 msgid "Failed to add provider"
 msgstr "Failed to add provider"
 
+#. js-lingui-id: JkG3uG
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Failed to create dashboard from template"
+msgstr "Failed to create dashboard from template"
+
 #. js-lingui-id: WM7GKt
 #: src/pages/settings/ai/SettingsAI.tsx
 msgid "Failed to create tool"
@@ -6900,6 +6915,11 @@ msgstr "Failed to merge records. Please try again."
 #: src/modules/ai/components/RoutingDebugDisplay.tsx
 msgid "Failed to parse context: {contextValue}"
 msgstr "Failed to parse context: {contextValue}"
+
+#. js-lingui-id: 1b+PsA
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Failed to populate dashboard template"
+msgstr "Failed to populate dashboard template"
 
 #. js-lingui-id: 3m7+J/
 #: src/pages/settings/admin-panel/SettingsAdminWorkspacesStatus.tsx
@@ -14654,10 +14674,10 @@ msgstr "Sync with Google"
 msgid "Sync with Outlook"
 msgstr "Sync with Outlook"
 
-#. js-lingui-id: +9x4tK
+#. js-lingui-id: IY6NLm
 #: src/pages/onboarding/SyncEmails.tsx
-msgid "Sync your Emails and Calendar with Twenty. Choose your privacy settings."
-msgstr "Sync your Emails and Calendar with Twenty. Choose your privacy settings."
+msgid "Sync your Emails and Calendar with XO Pure. Choose your privacy settings."
+msgstr "Sync your Emails and Calendar with XO Pure. Choose your privacy settings."
 
 #. js-lingui-id: N2FcBE
 #: src/modules/settings/accounts/components/SettingsAccountsConnectedAccountsRowRightContainer.tsx
@@ -16854,10 +16874,10 @@ msgstr "weeks"
 msgid "Weight"
 msgstr "Weight"
 
-#. js-lingui-id: nTuObL
+#. js-lingui-id: yF+7Uv
 #: src/pages/auth/SignInUp.tsx
-msgid "Welcome to Twenty"
-msgstr "Welcome to Twenty"
+msgid "Welcome to XO Pure"
+msgstr "Welcome to XO Pure"
 
 #. js-lingui-id: t8ZvkC
 #: src/pages/auth/SignInUp.tsx

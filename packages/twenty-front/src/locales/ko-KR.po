@@ -2860,10 +2860,10 @@ msgstr ""
 msgid "by {author}"
 msgstr "제작: {author}"
 
-#. js-lingui-id: 8Pfllj
+#. js-lingui-id: goCWf6
 #: src/modules/auth/sign-in-up/components/FooterNote.tsx
-msgid "By using Twenty, you agree to the"
-msgstr "Twenty를 사용함으로써 귀하는 다음에 동의합니다"
+msgid "By using XO Pure, you agree to the"
+msgstr ""
 
 #. js-lingui-id: Yx41df
 #: src/modules/auth/sign-in-up/components/FooterNote.tsx
@@ -4237,6 +4237,11 @@ msgstr "사용자 정의 보기 생성"
 msgid "Create date field"
 msgstr "날짜 필드 생성"
 
+#. js-lingui-id: bjGeoV
+#: src/modules/object-record/record-index/components/RecordIndexPageHeader.tsx
+msgid "Create from template"
+msgstr ""
+
 #. js-lingui-id: vY2Gfm
 #: src/modules/views/view-picker/components/ViewPickerCreateButton.tsx
 msgid "Create new view"
@@ -4657,6 +4662,11 @@ msgstr "덴마크어"
 #: src/modules/ui/navigation/navigation-drawer/components/MultiWorkspaceDropdown/internal/MultiWorkspaceDropdownThemesComponents.tsx
 msgid "Dark"
 msgstr "다크"
+
+#. js-lingui-id: HC1Vhh
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Dashboard created from template"
+msgstr ""
 
 #. js-lingui-id: ogQzcZ
 #: src/modules/command-menu-item/engine-command/record/single-record/dashboard/components/DuplicateDashboardSingleRecordCommand.tsx
@@ -6836,6 +6846,11 @@ msgstr "모델을 추가하지 못했습니다"
 msgid "Failed to add provider"
 msgstr "공급자를 추가하지 못했습니다"
 
+#. js-lingui-id: JkG3uG
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Failed to create dashboard from template"
+msgstr ""
+
 #. js-lingui-id: WM7GKt
 #: src/pages/settings/ai/SettingsAI.tsx
 msgid "Failed to create tool"
@@ -6905,6 +6920,11 @@ msgstr "레코드 병합에 실패했습니다. 다시 시도해 주세요."
 #: src/modules/ai/components/RoutingDebugDisplay.tsx
 msgid "Failed to parse context: {contextValue}"
 msgstr "컨텍스트 구문 분석 실패: {contextValue}"
+
+#. js-lingui-id: 1b+PsA
+#: src/modules/dashboards/templates/hooks/useInstantiateDashboardTemplate.ts
+msgid "Failed to populate dashboard template"
+msgstr ""
 
 #. js-lingui-id: 3m7+J/
 #: src/pages/settings/admin-panel/SettingsAdminWorkspacesStatus.tsx
@@ -14636,10 +14656,10 @@ msgstr "Google과 동기화"
 msgid "Sync with Outlook"
 msgstr "Outlook과 동기화"
 
-#. js-lingui-id: +9x4tK
+#. js-lingui-id: IY6NLm
 #: src/pages/onboarding/SyncEmails.tsx
-msgid "Sync your Emails and Calendar with Twenty. Choose your privacy settings."
-msgstr "이메일과 캘린더를 Twenty와 동기화하세요. 개인정보 설정을 선택하세요."
+msgid "Sync your Emails and Calendar with XO Pure. Choose your privacy settings."
+msgstr ""
 
 #. js-lingui-id: N2FcBE
 #: src/modules/settings/accounts/components/SettingsAccountsConnectedAccountsRowRightContainer.tsx
@@ -16804,10 +16824,10 @@ msgstr ""
 msgid "Weight"
 msgstr ""
 
-#. js-lingui-id: nTuObL
+#. js-lingui-id: yF+7Uv
 #: src/pages/auth/SignInUp.tsx
-msgid "Welcome to Twenty"
-msgstr "Twenty에 오신 것을 환영합니다"
+msgid "Welcome to XO Pure"
+msgstr ""
 
 #. js-lingui-id: t8ZvkC
 #: src/pages/auth/SignInUp.tsx
