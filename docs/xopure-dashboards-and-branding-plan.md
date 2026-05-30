@@ -49,6 +49,25 @@
 - [x] Recorded the full architecture, dependency, data-model, drift, and risk audit in
       `docs/xopure-codebase-audit-2026-05-30.md`.
 
+## Continuation milestone — 2026-05-30
+
+- [x] Reconciled the current dirty worktree and preserved the concurrent
+      `docs/xopure-dashboard-widget-ideas.md` backlog without modifying it.
+- [x] Reconfirmed the non-negotiable Supabase read-only law before continuing:
+      no database writes, mutating REST calls, migrations, or write-capable
+      verification paths.
+- [x] Re-ran the locally available widget validation path: XO Pure app lint,
+      XO Pure app typecheck, diff whitespace check, sync script syntax check,
+      fixed-color scan, and Supabase mutation-pattern scan are clean.
+- [x] Confirmed the repository requires Node `24.5.0`; the runtime is not
+      installed locally and repository-root dependencies are not restored yet.
+- [x] Installed the required Node `24.5.0` runtime locally.
+- [x] Cleared Yarn's disposable global package cache after the first immutable
+      install exposed local disk pressure, raising free space from `3.4 GiB`
+      to `9.8 GiB` without touching source files.
+- [ ] Restore repository-root dependencies, regenerate Lingui catalogs, and
+      run the focused root-level validation suite.
+
 ---
 
 ## 0. Context & key findings
@@ -203,6 +222,25 @@ Two deliberate data planes:
       Until then, curated starter templates intentionally **avoid** gauge cards because a
       derived max is approximate and could mislead; serialization already supports `'gauge'`.
 
+**A1e. Flagship admin templates** — DONE 2026-05-30
+*(Designs: [`xopure-admin-and-portal-dashboards.md`](./xopure-admin-and-portal-dashboards.md);
+cards: [`xopure-dashboard-widget-ideas.md`](./xopure-dashboard-widget-ideas.md).)*
+- [x] **Admin · Mission Control I — Growth & Revenue** (12 native cards): KPI row, revenue/orders
+      trends, status & acquisition breakdowns, AOV, payment-method mix, top-ambassador and recent-
+      orders tables.
+- [x] **Admin · Mission Control II — Compensation & Network** (2 tabs, 20 cards): period payouts &
+      payout-% trend, rank/tier distribution, lifetime comp; ambassador path/rank/elite/status mix.
+- [x] **Compliance & Risk Command** (11 cards): fraud-score aggregate + **gauge**, fraud-flagged /
+      self-referral / payment-method / status shares, orders table.
+- [x] **Recruiting & Onboarding** (10 cards): ambassador & customer acquisition trends, onboarding-
+      stage funnel (as bar), acquisition-source and path mix.
+- [x] **Product Performance** (11 cards): catalog mix by category/format, pricing & CV, active /
+      commission-eligible shares, units sold.
+- [x] Nine templates total, all surfaced automatically in the gallery; builder unit test asserts
+      every shipped template resolves all cards against the deployed object model.
+- [ ] Verify the admin templates end-to-end in the running app (create from gallery → cards render).
+- [ ] Pending portal templates *Ambassador · My Business* and *Customer · My XO Pure* (after D2).
+
 ### Phase A1 verification notes
 
 - [x] `git diff --check`
@@ -239,10 +277,12 @@ Two deliberate data planes:
 
 - [x] All custom live widgets consume host-provided `twenty-sdk/ui` theme tokens — no
       hardcoded visual colors (light/dark parity).
-- [ ] Skeleton loaders, empty/error states (reuse `PageLayoutWidgetNoDataDisplay`), subtle
-      entrance + number-tick animations on live values.
-- [ ] Responsive grid presets baked into templates so dashboards look intentional on first
-      instantiation.
+- [x] Add themed skeleton loaders, consistent empty/error status pills, subtle SDK entrance
+      animation, and number-tick interpolation on live count and revenue values. The sandboxed
+      app uses a local state component because host-internal `PageLayoutWidgetNoDataDisplay`
+      is not exported through `twenty-sdk/ui`.
+- [x] Bake intentional half-width and full-width desktop grid presets into templates. The host
+      converts those layouts to single-column mobile cards automatically.
 
 ### Phase A4 — Agentic foundation (scoping only)
 
@@ -288,13 +328,14 @@ rebrand has begun.
 | Auth landing copy ("Welcome to Twenty") | `packages/twenty-front/src/pages/auth/SignInUp.tsx` | [x] Done 2026-05-30 → "Welcome to XO Pure" |
 | Sign-in/up footer note | `packages/twenty-front/src/modules/auth/sign-in-up/components/FooterNote.tsx` | [x] Done 2026-05-30 → "By using XO Pure…" |
 | Onboarding email sync copy | `packages/twenty-front/src/pages/onboarding/SyncEmails.tsx` | [x] Done 2026-05-30 |
-| Page titles | `packages/twenty-front/src/modules/ui/utilities/page-title/components/PageTitle.tsx` | [ ] Pending (driven by data; check default title) |
-| Other onboarding flows | `packages/twenty-front/src/pages/onboarding/*` | [ ] Pending sweep |
-| OAuth / authorize screen | `packages/twenty-front/src/pages/auth/Authorize.tsx` | [ ] Pending sweep |
+| Page titles | `packages/twenty-front/src/modules/ui/utilities/page-title/components/PageTitle.tsx`, `NotFound.tsx` | [x] Default already uses `XO Pure CRM`; corrected the 404 title |
+| Other onboarding flows | `packages/twenty-front/src/pages/onboarding/*` | [x] Source sweep complete; no remaining user-facing `Twenty` copy |
+| OAuth / authorize screen | `packages/twenty-front/src/pages/auth/Authorize.tsx` | [x] Replace hardcoded Twenty SVG with existing XO Pure launcher icon |
 | Compiled UI catalog (Lingui) | `packages/twenty-front/src/locales/generated/en.ts` and other locales | [ ] Regenerate after source-string sweep |
-| Email templates | `packages/twenty-emails/` | [ ] Pending sweep |
+| Email templates | `packages/twenty-emails/` | [x] Source copy sweep complete; catalog regeneration and external URL pass remain open |
 | Legal link `href`s (twenty.com/legal/*) | `FooterNote.tsx` and others | [ ] Repoint to XO Pure legal URLs (not visible text, but shows on hover) |
-| Branding assets (logos, favicon, manifest, icons) | `services/server/branding/` (note: removed on `dev`; verify present on `main`) | [ ] Pending asset swap |
+| Branding assets (logos, favicon, manifest, icons) | `services/server/branding/`, email `Logo.tsx` | [ ] XO Pure overlay is present; confirm final artwork and add a hosted XO Pure email-logo URL |
+| Miscellaneous visible UI copy | 404, billing errors, spreadsheet import, application description, settings examples | [x] Source sweep complete |
 
 **Verification note:** This workspace's TypeScript server / dependencies are not fully
 resolved in the current environment (every module, incl. `react`, reports "cannot find"), so
@@ -375,6 +416,46 @@ REFRESH_TOKEN_EXPIRES_IN=180d
 
 ---
 
+## 4.5 Workstream D — External portals (ambassador & customer facing)
+
+> Full design: [`xopure-admin-and-portal-dashboards.md`](./xopure-admin-and-portal-dashboards.md).
+
+**Goal:** surface **self-scoped** dashboards to end users handed off from **xopure.com** — an
+ambassador sees only their own book, downline, and commissions; a customer sees only their own
+account — without a second login, and **read-only** against Supabase under RLS.
+
+- **Admin "Mission Control"** (internal, two pages: *Growth & Revenue* and *Comp, Risk & Network*)
+  is the global command center; Page I ships almost entirely on the native engine today.
+- **Ambassador "My Business"** and **Customer "My XO Pure"** are row-scoped portals built from
+  `FRONT_COMPONENT` widgets reading Supabase under **RLS keyed to the authenticated identity**
+  (anon key only; standing read-only law).
+
+**Portal phases (D1–D5):**
+- [ ] **D1 — Identity bridge:** xopure.com (Supabase Auth) → portal token hand-off; RLS claim
+      mapping (`ambassadorId` / `customerId`). No service-role key client-side; read-only only.
+- [ ] **D2 — Self-scoped data layer:** authenticated Supabase client + scoped widget data hooks.
+- [ ] **D3 — Ambassador portal:** "My Business" dashboard gated to `ambassadorId`.
+- [ ] **D4 — Customer portal:** "My XO Pure" dashboard gated to `customerId`.
+- [ ] **D5 — Polish & surface:** branding, standalone portal app vs embed decision, responsive.
+
+**Engine upgrades these surfaces promote to first-class A-phase items** (each unlocks many admin
+cards too): gauge goal/range model, group-by on a relation field, bucketed histogram, and the
+leaderboard / funnel / downline-tree primitives. **Comp-engine derived data (🟠)** — held/payable
+balances, Friday-sweep eligibility (`> $10`), milestone tracking — must be derived read-only from
+Supabase (or computed in the Twenty mirror) before the compensation and ambassador-earnings cards
+are real.
+
+**Expanded A1 template roster** (see the design doc §5): the **five admin templates are now
+scaffolded in code** (2026-05-30) — *Admin Mission Control I — Growth & Revenue*,
+*Admin Mission Control II — Compensation & Network*, *Compliance & Risk Command*,
+*Recruiting & Onboarding*, and *Product Performance* — all 100% native and gallery-discoverable,
+joining the original four for **nine templates total**. A builder unit test asserts every shipped
+template resolves all its cards against the deployed object model. Still pending: the self-scoped
+portal templates *Ambassador · My Business* and *Customer · My XO Pure* (after D2), plus backfilling
+🟡/🟠 cards (relation group-by, held/payable, fraud histogram) as the engine/comp-data upgrades land.
+
+---
+
 ## 5. Sequencing & recommended start
 
 1. **C — Sessions** (fastest win, env-only). Immediate quality-of-life improvement.
@@ -390,10 +471,25 @@ REFRESH_TOKEN_EXPIRES_IN=180d
 - [ ] Supabase anon key + RLS policies for read-only Realtime access — confirm tables/channels.
 - [ ] Final `REFRESH_TOKEN_EXPIRES_IN` value (180d vs 365d).
 - [ ] XO Pure brand assets (logo SVG, favicon, app icons) — source files needed for B.4.
+- [ ] XO Pure public destinations — app base URL, marketing site, legal terms/privacy, docs,
+      GitHub, releases, and hosted email-logo URL.
 - [ ] Which template set ships first (default: Ambassador Growth).
 
 ## 7. Change log
 
+- 2026-05-30 — Scaffolded five native admin dashboard templates in `DashboardTemplates.ts`
+  (Mission Control I & II, Compliance & Risk Command, Recruiting & Onboarding, Product
+  Performance) — nine templates total, all gallery-discoverable. Added a builder unit test
+  asserting every shipped template resolves all cards against the deployed object model.
+- 2026-05-30 — Completed A3 live-widget polish: SDK theme tokens, shared themed
+  loading/empty/error states, Realtime number interpolation, and responsive template review.
+  Continued the rebrand with a source-copy sweep across 404, billing, import, app-description,
+  settings-example, authorize, and email-template surfaces. External URLs and Lingui catalog
+  regeneration remain open.
+- 2026-05-30 — Added the card catalog (`xopure-dashboard-widget-ideas.md`) and the flagship
+  dashboard designs (`xopure-admin-and-portal-dashboards.md`): two-page Admin "Mission Control",
+  self-scoped Ambassador "My Business" and Customer "My XO Pure" portals, the xopure.com→portal
+  identity hand-off, and an expanded eight-template roster. Added **Workstream D — External portals**.
 - 2026-05-30 — Codified the Supabase read-only law in `CLAUDE.md` (durable, top-of-file).
   Fixed the gauge graph router: added `GraphWidgetGaugeChartRenderer` + `deriveGaugeMax`
   (unit-tested) and wired `GraphWidget.tsx` `GAUGE_CHART` → renderer. Restored the accidentally
