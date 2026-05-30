@@ -1,3 +1,4 @@
+import { DASHBOARD_TEMPLATES } from '@/dashboards/templates/constants/DashboardTemplates';
 import { buildDraftPageLayoutFromTemplate } from '@/dashboards/templates/utils/buildDraftPageLayoutFromTemplate';
 import { type DashboardTemplate } from '@/dashboards/templates/types/DashboardTemplate';
 import {
@@ -263,4 +264,110 @@ describe('buildDraftPageLayoutFromTemplate', () => {
       frontComponentId: 'front-component-id',
     });
   });
+});
+
+describe('shipped DASHBOARD_TEMPLATES resolve against the deployed object model', () => {
+  // Mirrors the deployed Phase-1 object model (scripts/xopure/setup-custom-objects/spec.mjs)
+  // plus the standard `createdAt`. Every object/field referenced by any shipped template must
+  // resolve here — otherwise that card would be silently skipped at instantiation. This guards
+  // the whole template set against field-name typos and against drift from the synced schema.
+  const FIELDS_BY_OBJECT: Record<string, string[]> = {
+    product: [
+      'id',
+      'createdAt',
+      'category',
+      'format',
+      'retailPrice',
+      'cvAmount',
+      'isActive',
+      'commissionEligible',
+    ],
+    period: [
+      'id',
+      'createdAt',
+      'status',
+      'startDate',
+      'endDate',
+      'totalRetail',
+      'totalCV',
+      'totalPayouts',
+      'payoutPercentOfRetail',
+    ],
+    ambassador: [
+      'id',
+      'createdAt',
+      'status',
+      'path',
+      'enrolledAt',
+      'qualifiedRank',
+      'paidAsRank',
+      'eliteMaintained',
+      'groupCV',
+      'activeCustomerCount',
+      'personalEnrollments',
+      'currentTier',
+      'lifetimeEarnings',
+      'onboardingStage',
+    ],
+    customer: [
+      'id',
+      'createdAt',
+      'enrolledAt',
+      'subscriptionStatus',
+      'acquisitionSource',
+    ],
+    xoOrder: [
+      'id',
+      'createdAt',
+      'orderedAt',
+      'status',
+      'quantity',
+      'totalRetail',
+      'totalCV',
+      'paymentMethod',
+      'isPersonalOrder',
+      'fraudScore',
+      'fraudFlagged',
+    ],
+  };
+
+  const resolveObjectMetadataId = (objectNameSingular: string) =>
+    objectNameSingular in FIELDS_BY_OBJECT
+      ? `${objectNameSingular}-object-id`
+      : undefined;
+
+  const resolveFieldMetadataId = (
+    objectNameSingular: string,
+    fieldName: string,
+  ) =>
+    FIELDS_BY_OBJECT[objectNameSingular]?.includes(fieldName)
+      ? `${objectNameSingular}-${fieldName}-id`
+      : undefined;
+
+  // Front components resolve by universal identifier (live widgets in the XO Pure app).
+  const resolveFrontComponentId = () => 'resolved-front-component-id';
+
+  it.each(DASHBOARD_TEMPLATES.map((template) => [template.name, template] as const))(
+    '%s renders every card (none skipped)',
+    (_name, template) => {
+      const draft = buildDraftPageLayoutFromTemplate({
+        template,
+        pageLayoutId: 'page-layout-id',
+        resolveObjectMetadataId,
+        resolveFieldMetadataId,
+        resolveFrontComponentId,
+      });
+
+      const builtWidgetCount = draft.tabs.reduce(
+        (total, tab) => total + tab.widgets.length,
+        0,
+      );
+      const templateWidgetCount = template.tabs.reduce(
+        (total, tab) => total + tab.widgets.length,
+        0,
+      );
+
+      expect(builtWidgetCount).toBe(templateWidgetCount);
+    },
+  );
 });
