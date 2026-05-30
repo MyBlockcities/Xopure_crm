@@ -23,5 +23,26 @@ export default defineApplication({
       value: 'manual',
       isSecret: false,
     },
+    XOPURE_SUPABASE_URL: {
+      universalIdentifier: '6e37d170-d37b-4ac9-bd8f-a924d9038c7b',
+      description:
+        'Supabase project URL used by read-only realtime dashboard cards.',
+      value: '',
+      isSecret: false,
+    },
+    XOPURE_SUPABASE_ANON_KEY: {
+      universalIdentifier: 'f4fd3f8d-e981-4c0a-b2fc-fe603c5fed36',
+      description:
+        'RLS-scoped anon key used by read-only realtime dashboard cards. Never use a service-role key.',
+      value: '',
+      isSecret: false,
+    },
+    XOPURE_LIVE_METRIC_TABLE: {
+      universalIdentifier: '2afdd090-eb21-4440-af84-3b3102782aaf',
+      description:
+        'Allowlisted Supabase table counted by the live metric card: orders, affiliates, or customers.',
+      value: 'orders',
+      isSecret: false,
+    },
   },
 });
