@@ -229,8 +229,8 @@ const handler = async (event: RoutePayload) => {
     },
     nextStep:
       targetObject === null
-        ? 'Add this source table to TARGET_OBJECT_BY_SOURCE_TABLE before enabling writes.'
-        : 'Send fieldValues to Twenty Core API upsert and persist the resulting record ID in public.crm_sync_map.',
+        ? 'Add this source table to TARGET_OBJECT_BY_SOURCE_TABLE before enabling Twenty-side writes.'
+        : 'Send fieldValues to Twenty Core API upsert. Keep sync bookkeeping in Twenty; Supabase remains read-only.',
   };
 };
 

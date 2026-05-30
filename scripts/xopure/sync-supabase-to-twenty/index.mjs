@@ -1,10 +1,12 @@
+
 // Sync products, ambassadors (affiliates), customers, periods, and orders from
 // the XO Pure Supabase project into the Twenty CRM workspace. Idempotent: tracks state in
-// public.crm_sync_map on the Supabase side, keyed by source_id.
+// public.crm_sync_map on the Supabase side, keyed by source_id. The map is
+// compatibility-read-only: this script never mutates Supabase.
 //
 // Env required:
 //   VITE_SUPABASE_URL        Supabase REST URL
-//   SUPABASE_SERVICE_ROLE_KEY Supabase service role key for REST reads/upserts
+//   SUPABASE_SERVICE_ROLE_KEY Supabase service role key for REST reads
 //   TWENTY_PG_URL            Twenty (Railway) Postgres connection string (DATABASE_PUBLIC_URL)
 //   TWENTY_WORKSPACE_SCHEMA  e.g. workspace_5pedu4dl120j0zsebvp6nap5w
 //
@@ -330,7 +332,10 @@ const twenty = new Client({
 
 const supabasePg =
   SUPABASE_SYNC_SOURCE === 'pg'
-    ? new Client({ connectionString: SUPABASE_PG_URL })
+    ? new Client({
+        connectionString: SUPABASE_PG_URL,
+        options: '-c default_transaction_read_only=on',
+      })
     : null;
 
 const tableColumnCache = new Map();
@@ -470,6 +475,12 @@ const findRecordByEmail = async (tableName, email) => {
 };
 
 const supabaseRest = async (path, { method = 'GET', params, body } = {}) => {
+  if (method !== 'GET') {
+    throw new Error(
+      `Blocked Supabase REST ${method}: Supabase is an absolute read-only source.`,
+    );
+  }
+
   const url = new URL(`${SUPABASE_URL}/rest/v1/${path}`);
   for (const [key, value] of Object.entries(params ?? {})) {
     if (value !== undefined && value !== null) {
@@ -483,9 +494,6 @@ const supabaseRest = async (path, { method = 'GET', params, body } = {}) => {
       apikey: SUPABASE_SERVICE_ROLE_KEY,
       authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
       'content-type': 'application/json',
-      ...(method === 'POST' || method === 'PATCH'
-        ? { prefer: 'resolution=merge-duplicates,return=minimal' }
-        : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -564,148 +572,13 @@ const getSyncMapByTwentyId = async ({ twentyObject = 'person', twentyId }) => {
   return rows[0];
 };
 
-const reassignSyncMapByTwentyId = async ({
-  sourceSystem,
-  sourceTable,
-  sourceId,
-  twentyObject = 'person',
-  twentyId,
-  contentHash,
-  payload,
-}) => {
-  if (supabasePg) {
-    await supabasePg.query(
-      `update public.crm_sync_map
-          set source_system=$1,
-              source_schema='public',
-              source_table=$2,
-              source_id=$3,
-              content_hash=$4,
-              last_payload=$5,
-              last_written_by=$6,
-              last_synced_at=now(),
-              last_error=null,
-              retry_count=0
-        where twenty_object=$7 and twenty_record_id=$8`,
-      [
-        sourceSystem,
-        sourceTable,
-        sourceId,
-        contentHash,
-        payload,
-        IMPORTED_BY_NAME,
-        twentyObject,
-        twentyId,
-      ],
-    );
-    return;
-  }
-
-  await supabaseRest('crm_sync_map', {
-    method: 'PATCH',
-    params: {
-      twenty_object: `eq.${twentyObject}`,
-      twenty_record_id: `eq.${twentyId}`,
-    },
-    body: {
-      source_system: sourceSystem,
-      source_schema: 'public',
-      source_table: sourceTable,
-      source_id: sourceId,
-      content_hash: contentHash,
-      last_payload: payload,
-      last_written_by: IMPORTED_BY_NAME,
-      last_synced_at: new Date().toISOString(),
-      last_error: null,
-      retry_count: 0,
-    },
-  });
-};
-
 const upsertSyncMap = async ({
-  sourceSystem,
   sourceTable,
-  sourceId,
   twentyObject = 'person',
-  twentyId,
-  contentHash,
-  payload,
 }) => {
-  if (supabasePg) {
-    await supabasePg.query(
-      `insert into public.crm_sync_map
-        (source_system, source_schema, source_table, source_id,
-         twenty_object, twenty_record_id, sync_direction,
-         content_hash, last_payload, last_written_by, last_synced_at)
-       values ($1,'public',$2,$3,$4,$5,'supabase_to_twenty',$6,$7,$8,now())
-       on conflict (source_system, source_schema, source_table, source_id, twenty_object)
-       do update set twenty_record_id = excluded.twenty_record_id,
-                     content_hash = excluded.content_hash,
-                     last_payload = excluded.last_payload,
-                     last_written_by = excluded.last_written_by,
-                     last_synced_at = now(),
-                     last_error = null,
-                     retry_count = 0`,
-      [
-        sourceSystem,
-        sourceTable,
-        sourceId,
-        twentyObject,
-        twentyId,
-        contentHash,
-        payload,
-        IMPORTED_BY_NAME,
-      ],
-    );
-    return;
-  }
-
-  const body = {
-    source_system: sourceSystem,
-    source_schema: 'public',
-    source_table: sourceTable,
-    source_id: sourceId,
-    twenty_object: twentyObject,
-    twenty_record_id: twentyId,
-    sync_direction: 'supabase_to_twenty',
-    content_hash: contentHash,
-    last_payload: payload,
-    last_written_by: IMPORTED_BY_NAME,
-    last_synced_at: new Date().toISOString(),
-    last_error: null,
-    retry_count: 0,
-  };
-
-  try {
-    await supabaseRest('crm_sync_map', {
-      method: 'POST',
-      params: {
-        on_conflict: 'source_system,source_schema,source_table,source_id,twenty_object',
-      },
-      body,
-    });
-  } catch (error) {
-    if (
-      error.status !== 409 ||
-      !String(error.body).includes('crm_sync_map_twenty_unique')
-    ) {
-      throw error;
-    }
-
-    const existing = await getSyncMapByTwentyId({ twentyObject, twentyId });
-
-    if (existing?.source_table === sourceTable) {
-      await reassignSyncMapByTwentyId({
-        sourceSystem,
-        sourceTable,
-        sourceId,
-        twentyObject,
-        twentyId,
-        contentHash,
-        payload,
-      });
-    }
-  }
+  log(
+    `- skipped Supabase crm_sync_map write for ${sourceTable} -> ${twentyObject}; Supabase is read-only`,
+  );
 };
 
 const listAffiliates = async () => {
@@ -844,6 +717,43 @@ const buildPeriodSummaries = (orders) => {
   return [...byCode.values()].sort((a, b) =>
     a.periodCode.localeCompare(b.periodCode),
   );
+};
+
+const listDistinctOrderEmails = async () => {
+  if (supabasePg) {
+    const { rows } = await supabasePg.query(
+      `select distinct on (lower(user_email))
+              user_email,
+              min(created_at) over (partition by lower(user_email)) as first_seen
+         from public.orders
+        where user_email is not null and length(user_email) > 0`,
+    );
+    return rows;
+  }
+
+  const rows = await supabaseRest('orders', {
+    params: {
+      select: 'user_email,created_at',
+      user_email: 'not.is.null',
+      order: 'created_at.asc',
+    },
+  });
+
+  const byEmail = new Map();
+  for (const row of rows) {
+    const email = row.user_email?.trim();
+    if (!email) continue;
+    const key = email.toLowerCase();
+    const existing = byEmail.get(key);
+    if (!existing || row.created_at < existing.first_seen) {
+      byEmail.set(key, {
+        user_email: email,
+        first_seen: row.created_at,
+      });
+    }
+  }
+
+  return [...byEmail.values()];
 };
 
 if (supabasePg) {
@@ -1562,6 +1472,7 @@ const upsertOrderRecord = async ({
       gatewayPayload.capture_id,
     isPersonalOrder:
       Boolean(directAffiliateEmail) && directAffiliateEmail === customerEmail,
+    discountCode: row.discount_code_id ? String(row.discount_code_id) : undefined,
     referringAmbassadorId,
     customerId,
     productId,
@@ -1646,14 +1557,13 @@ const customerIdByEmail = new Map();
   }
 }
 
-const affiliateRows = await listAffiliates();
-
 // 2) Affiliates → Twenty people + Ambassador profiles
 {
-  stats.affiliates.read = affiliateRows.length;
-  stats.ambassadors.read = affiliateRows.length;
+  const rows = await listAffiliates();
+  stats.affiliates.read = rows.length;
+  stats.ambassadors.read = rows.length;
 
-  for (const row of affiliateRows) {
+  for (const row of rows) {
     const { first, last } = splitName(row.name);
     const payload = {
       firstName: first,
@@ -1683,11 +1593,11 @@ const affiliateRows = await listAffiliates();
     );
   }
 
-  await linkAmbassadorSponsors(affiliateRows, ambassadorIdBySourceId);
+  await linkAmbassadorSponsors(rows, ambassadorIdBySourceId);
 }
 
 const affiliateById = new Map(
-  affiliateRows.map((affiliate) => [String(affiliate.id), affiliate]),
+  (await listAffiliates()).map((affiliate) => [String(affiliate.id), affiliate]),
 );
 const orderRows = await listOrders();
 
