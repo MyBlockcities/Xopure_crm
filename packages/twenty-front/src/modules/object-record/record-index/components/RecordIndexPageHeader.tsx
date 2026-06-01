@@ -19,7 +19,7 @@ import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { isDefined } from 'twenty-shared/utils';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
-import { IconTemplate } from 'twenty-ui/display';
+import { IconLayoutDashboard, IconLayoutGrid } from 'twenty-ui/display';
 import { Button } from 'twenty-ui/input';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 
@@ -97,7 +97,7 @@ export const RecordIndexPageHeader = () => {
                 variant="primary"
                 accent="blue"
                 title={t`Create Main Mission Control`}
-                Icon={IconTemplate}
+                Icon={IconLayoutDashboard}
                 onClick={() => {
                   openModal(DASHBOARD_TEMPLATE_GALLERY_MODAL_ID);
                 }}
@@ -106,7 +106,7 @@ export const RecordIndexPageHeader = () => {
                 size="small"
                 variant="secondary"
                 title={t`All templates`}
-                Icon={IconTemplate}
+                Icon={IconLayoutGrid}
                 onClick={() => {
                   openModal(DASHBOARD_TEMPLATE_GALLERY_MODAL_ID);
                 }}
