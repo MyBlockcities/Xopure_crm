@@ -106,6 +106,12 @@ const NotFound = lazy(() =>
   })),
 );
 
+const MainDashboardRedirect = lazy(() =>
+  import('~/pages/main-dashboard/MainDashboardRedirect').then((module) => ({
+    default: module.MainDashboardRedirect,
+  })),
+);
+
 export const useCreateAppRouter = (
   isFunctionSettingsEnabled?: boolean,
   isAdminPageEnabled?: boolean,
@@ -209,7 +215,20 @@ export const useCreateAppRouter = (
               </LazyRoute>
             }
           />
-          <Route path={indexAppPath.getIndexAppPath()} element={<></>} />
+          {/* 
+            XO Pure Main Dashboard Landing
+            This is now the default experience after login / at AppPath.Index.
+            It ensures the PRIMARY_MAIN_DASHBOARD_TEMPLATE (Admin Mission Control I) exists
+            and navigates the user directly there.
+          */}
+          <Route
+            path={indexAppPath.getIndexAppPath()}
+            element={
+              <LazyRoute fallback={null}>
+                <MainDashboardRedirect />
+              </LazyRoute>
+            }
+          />
           <Route
             path={AppPath.RecordIndexPage}
             element={

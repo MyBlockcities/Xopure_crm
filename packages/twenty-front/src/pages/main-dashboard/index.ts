@@ -1,0 +1,1 @@
+export { MainDashboardRedirect } from './MainDashboardRedirect';

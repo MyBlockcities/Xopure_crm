@@ -502,6 +502,141 @@ portal templates *Ambassador · My Business* and *Customer · My XO Pure* (after
   asserting every shipped template resolves all cards against the deployed object model.
 - 2026-05-30 — Completed A3 live-widget polish: SDK theme tokens, shared themed
   loading/empty/error states, Realtime number interpolation, and responsive template review.
+- 2026-06-01 — Gallery + header UX: Hero "Admin Mission Control I — Growth & Revenue" as the
+  incredible main dashboard with one-click prominent "Create Incredible Main Dashboard" CTA inside
+  the modal and primary button in the Dashboards index header. Users can now instantly reach the
+  global command center experience once P0 prerequisites are met.
+
+---
+
+## 8. Execution Runbook — Making the Incredible Main Dashboard (Mission Control) Fully Populated & Live in Production (2026-06-01)
+
+**Goal:** Get all 9 XO Pure dashboard templates (especially the star **Admin · Mission Control I**) 
+instantiated, populated with real data, and beautifully visualized on crm.xopure.com, including the
+live/realtime widget UI cards.
+
+**Non-negotiable law reminder (from Claude.md):** Supabase is **read-only** from this repo and all
+scripts/agents. The sync + setup scripts below only ever **read** Supabase (REST GET or read-only PG)
+and **write only to the Twenty workspace Postgres** (allowed and required).
+
+### 8.1 P0 — Fix Production Build So Your Custom Frontend Code Actually Ships (Critical Blocker)
+
+Current state (railway.toml + services/server/Dockerfile):
+- Railway builds from repo root using a stock `twentycrm/twenty:v0.32.0` image.
+- Only branding assets (index.html, manifest, icons) are overlaid on the prebuilt dist/front.
+- **Result:** None of your templates, gallery improvements, page-layout work, or widget cards exist in prod.
+
+**Exact steps to fix:**
+1. In Railway dashboard for the web/server service:
+   - Keep Root Directory = `/` (repo root).
+   - Do **NOT** point it at `packages/twenty-front`.
+2. Create or update a production build pipeline that actually runs the monorepo build:
+   - Recommended: New multi-stage Dockerfile (or `services/server/Dockerfile.prod`) that does:
+     - `yarn install --immutable`
+     - `npx nx build twenty-shared`
+     - `npx nx build twenty-front` (with correct env for VITE_ vars, API URL, etc.)
+     - Copy the resulting `packages/twenty-front/dist` into the final image (replacing or alongside the stock front).
+   - Or: Separate Railway "front" service (static site or simple node static server) + nginx/ingress routing the / to the custom front and API calls to the server service.
+3. Update `services/server/Dockerfile` (or the new prod one) to use the built assets instead of (or after) the FROM upstream step.
+4. Set required Railway env vars for the front build (VITE_API_URL or equivalent pointing at your backend, feature flags, etc.).
+5. Trigger a fresh deploy and verify in browser devtools that the gallery now contains "Admin Mission Control I" and the new primary CTA.
+6. Document the final working Dockerfile + railway service config in `docs/xopure-twenty-infra.md`.
+
+Until this ships, local `yarn start` is the only way to see/test your work.
+
+### 8.2 P0 — Ensure Custom Objects + Fields Exist in the Target Twenty Workspace
+
+The 9 templates reference `ambassador`, `customer`, `xoOrder`, `period`, `product` and many specific fields.
+
+Run (from repo root, with proper env):
+
+```bash
+# Set env for the target workspace (Twenty PG URL, workspace schema, etc.)
+export TWENTY_PG_URL=...          # Railway Postgres public or internal URL
+export TWENTY_WORKSPACE_SCHEMA=workspace_xxxxx
+
+node scripts/xopure/setup-custom-objects/index.mjs
+```
+
+This creates the objects/fields/relations per `spec.mjs` so the resolver functions in `useInstantiateDashboardTemplate` + `buildDraftPageLayoutFromTemplate` succeed instead of silently dropping 70-90% of widgets.
+
+### 8.3 P0 — Populate Real Data via Supabase → Twenty Sync (Read-Only on Supabase Side)
+
+```bash
+export VITE_SUPABASE_URL=...
+export SUPABASE_SERVICE_ROLE_KEY=...
+export TWENTY_PG_URL=...
+export TWENTY_WORKSPACE_SCHEMA=workspace_xxxxx
+# Optional: DRY_RUN=1 for a no-op planning run first
+
+node scripts/xopure/sync-supabase-to-twenty/index.mjs
+```
+
+- Uses REST reads only (compliant).
+- Maps and imports ambassadors, customers, orders, periods, products, etc.
+- After this, the aggregate charts and record tables will have real numbers.
+
+Re-run periodically or on a schedule as your source data changes.
+
+### 8.4 P0 — Register Front Components for the Live/Realtime Widget Cards
+
+The three cards in `LIVE_OPERATIONS_TEMPLATE` and others use hardcoded universal IDs:
+- `b2cac5d7-b9b7-4fcb-89de-3c9a264b866d` (Live Metric Counter)
+- `17b51f1d-24dd-4fc5-b62f-07b3d168f361` (Realtime Revenue Trend)
+- `41f61b3b-ab7a-44df-a22e-4bb62f58021e` (Live Order Activity)
+
+You must create corresponding `FrontComponent` (or Application) records in the workspace metadata so `resolveFrontComponentId` succeeds during instantiation.
+
+Options:
+- Use the Settings → Applications UI (if the flow supports custom front components).
+- Or a one-off metadata write / workspace tool / GraphQL mutation against the Twenty API (writes to Twenty side only).
+- Once registered (with the correct blob URL or SDK client if using the remote pattern), re-instantiate the Live Operations or Mission Control dashboards.
+
+Your additional custom widget UI cards should follow the same registration path or be turned into first-class native widgets / new template types.
+
+### 8.5 P1 — Instantiate the Dashboards (Now Possible)
+
+1. Log into the (now correctly built) app.
+2. Navigate to the **Dashboards** object index (via command menu, object list, or /objects/dashboards).
+3. You will see the prominent **"Create Main Mission Control"** primary button (new UX) + "All templates".
+4. Click it → the enhanced gallery opens with **Admin · Mission Control I — Growth & Revenue** starred and hero'd with its own big CTA.
+5. Click the big CTA → it creates the Dashboard record + fully populates the PageLayout with the 12+ cards (any that couldn't resolve objects/fields will have been skipped gracefully).
+6. You are navigated to the beautiful rendered dashboard.
+7. (Optional) Use "Create all" for the complete set.
+
+The record show page for any Dashboard now correctly renders via `PageLayoutRecordPageRenderer` in DASHBOARD layout mode.
+
+### 8.6 Verification Checklist After P0 + Seeding
+
+- [ ] On prod, the gallery contains the new primary "Create Incredible Main..." button and the starred Mission Control card.
+- [ ] Instantiating produces a Dashboard record with many (ideally all) widgets.
+- [ ] Opening the dashboard shows visualized charts (aggregates, line/bar/pie/gauge), record tables with data, and (once wired) the live front-component cards.
+- [ ] No console errors on widget load; network calls to chart-data resolvers succeed.
+- [ ] Re-syncing data updates the numbers on next dashboard load (or refresh).
+- [ ] Local `yarn start` matches prod behavior (for future work).
+
+Run these locally for fast iteration:
+```bash
+npx nx lint:diff-with-main twenty-front
+npx nx typecheck twenty-front   # (expect some pre-existing env noise)
+cd packages/twenty-front && npx jest src/modules/dashboards/templates/utils/__tests__/buildDraftPageLayoutFromTemplate.test.ts --config=jest.config.mjs
+```
+
+### 8.7 Next After This Runbook (P2+)
+
+- Wire the remaining live widget cards (your custom UI cards).
+- Add a persistent "Main Dashboard" home experience (auto-redirect or shell embed of the primary Mission Control).
+- Backfill any 🟡/🟠 cards as engine primitives land.
+- Self-scoped ambassador/customer portals (D phases).
+- Agentic workflows on top of the rich dashboard data.
+
+---
+
+**You now have everything needed to go from "dashboards not populating" to a fully working, incredible, data-rich Mission Control experience both locally and (after the build fix) in production.**
+
+Contact me for the next code iteration (more command-menu integration, auto-seed on first visit, persistent main dashboard concept, robustness improvements that surface skipped cards, etc.). 
+
+We are executing the plan.
   Continued the rebrand with a source-copy sweep across 404, billing, import, app-description,
   settings-example, authorize, and email-template surfaces. External URLs and Lingui catalog
   regeneration remain open.

@@ -1145,6 +1145,11 @@ export const PRODUCT_PERFORMANCE_TEMPLATE: DashboardTemplate = {
   ],
 };
 
+// The single "incredible main dashboard" — the global owner/ops command center.
+// This is the one we hero in the gallery and surface via primary CTAs.
+// All cards are native (no front components required for the core version).
+export const PRIMARY_MAIN_DASHBOARD_TEMPLATE = ADMIN_MISSION_CONTROL_I_TEMPLATE;
+
 export const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
   ADMIN_MISSION_CONTROL_I_TEMPLATE,
   ADMIN_MISSION_CONTROL_II_TEMPLATE,

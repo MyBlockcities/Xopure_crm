@@ -90,10 +90,22 @@ export const RecordIndexPageHeader = () => {
           <RecordIndexCommandMenu />
           {isDashboardIndex && (
             <>
+              {/* Prominent entry to the incredible main dashboard (Admin Mission Control I).
+                  Opens the gallery which now heroes the one-click "Create Incredible Main Dashboard" action. */}
+              <Button
+                size="small"
+                variant="primary"
+                accent="blue"
+                title={t`Create Main Mission Control`}
+                Icon={IconTemplate}
+                onClick={() => {
+                  openModal(DASHBOARD_TEMPLATE_GALLERY_MODAL_ID);
+                }}
+              />
               <Button
                 size="small"
                 variant="secondary"
-                title={t`Create from template`}
+                title={t`All templates`}
                 Icon={IconTemplate}
                 onClick={() => {
                   openModal(DASHBOARD_TEMPLATE_GALLERY_MODAL_ID);

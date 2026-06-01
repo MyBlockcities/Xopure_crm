@@ -1,6 +1,13 @@
 # services/worker/railway.toml
 #
 # Twenty CRM — worker (background) service configuration
+#
+# CRITICAL: Keep the Docker image tag in services/worker/Dockerfile in sync
+# with services/server/Dockerfile. Mismatched versions can cause queue issues.
+#
+# It is usually best to keep the worker on the pure upstream image
+# (lightweight) while the server service uses the custom multi-stage build
+# that includes your twenty-front changes.
 
 [build]
 builder = "DOCKERFILE"

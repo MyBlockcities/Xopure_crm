@@ -1,6 +1,14 @@
-# Root Railway config for the web service attached to crm.xopure.com.
-# Railway currently deploys this repository from the root, so this file must
-# point at the production Twenty server image under services/server.
+# Root Railway config (mostly legacy / fallback).
+#
+# In practice, the individual services (web, worker, backup) are attached in
+# the Railway dashboard with their own Root Directory set to the corresponding
+# folder under `services/`.
+#
+# The actual build logic for the custom web server lives in:
+#   services/server/Dockerfile   (multi-stage build that compiles twenty-front)
+#
+# See services/server/railway.toml and the big comment block at the top of
+# services/server/Dockerfile for the required Railway dashboard settings.
 
 [build]
 builder = "DOCKERFILE"

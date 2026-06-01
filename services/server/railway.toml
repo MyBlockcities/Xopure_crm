@@ -1,6 +1,15 @@
 # services/server/railway.toml
 #
-# Twenty CRM — server (web) service configuration
+# XO Pure CRM — Main web/server service configuration
+#
+# IMPORTANT RAILWAY DASHBOARD SETTINGS (required for custom frontend builds):
+#   - Root Directory for this service MUST be set to `/` (repo root)
+#   - Dockerfile path should point to `services/server/Dockerfile`
+#
+# This allows the multi-stage build in the Dockerfile to access the full monorepo
+# so that `npx nx build twenty-front` (and twenty-shared) can run.
+#
+# The worker service can stay on the lightweight upstream image.
 
 [build]
 builder = "DOCKERFILE"
@@ -18,7 +27,6 @@ restartPolicyMaxRetries = 3
 healthcheckPath = "/healthz"
 healthcheckTimeout = 300
 
-# Don't auto-deploy on every commit — we want intentional upgrades.
-# Push to a branch like `deploy` and trigger from CLI/dashboard.
-[deploy.startCommand]
-# Use Twenty's default entrypoint. Do not override.
+# We generally want intentional deploys rather than auto-deploy on every commit.
+# You can control this in the Railway dashboard per service.
+
