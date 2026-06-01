@@ -83,9 +83,11 @@ RUN npx nx build twenty-front --configuration=production
 # CRITICAL: services/server and services/worker MUST use the exact same tag.
 FROM twentycrm/twenty:v0.32.0
 
-# Copy the freshly built custom frontend dist over the stock one.
-# The upstream image serves the frontend from this location.
-COPY --from=builder /app/packages/twenty-front/dist /app/packages/twenty-server/dist/front
+# Copy the freshly built custom frontend over the stock one.
+# twenty-front's Vite build emits to packages/twenty-front/build (vite.config.ts
+# outDir: 'build', project.json outputPath: {projectRoot}/build) — NOT dist.
+# The upstream image serves the frontend from /app/packages/twenty-server/dist/front.
+COPY --from=builder /app/packages/twenty-front/build /app/packages/twenty-server/dist/front
 
 # Apply XO Pure branding on top of the custom build (favicons, manifest, title, etc.)
 USER root
