@@ -21,22 +21,53 @@
 # If the Root Directory is still set to `services/server`, Railway will not
 # have access to the rest of the monorepo and the build will fail or fall back
 # to the old branding-only behavior.
+#
+# Builder image: node:22-bookworm-slim (chosen for reliable native module builds
+# such as canvas). Runtime remains the official twentycrm/twenty:v0.32.0 image.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 # Builder stage — full monorepo context, builds custom frontend
 # -----------------------------------------------------------------------------
-FROM node:24-alpine AS builder
+# WHY node:22-bookworm-slim (not Alpine + Node 24):
+# - Alpine is extremely minimal and frequently fails to build native Node modules
+#   such as canvas@3.x (a transitive dependency pulled in by charting, testing,
+#   PDF, and jsdom-related packages in the Twenty ecosystem).
+# - canvas requires Cairo, Pango, JPEG, GIF, SVG, pixman, etc. at compile time.
+# - Node 24 is still young for many heavy monorepos; Node 22 LTS is the current
+#   stable, well-tested choice for Twenty-style builds.
+#
+# This combination (Debian bookworm + Node 22) gives the highest success rate
+# on Railway / CI while still producing a reasonably small builder layer.
+# -----------------------------------------------------------------------------
+FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install dependencies (this is a heavy monorepo — give it time + disk)
+# Install native build dependencies required by canvas and similar packages.
+# These must be present BEFORE `yarn install --immutable` so that optional
+# native modules can compile successfully.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg-dev \
+    libgif-dev \
+    librsvg2-dev \
+    libpixman-1-dev \
+    pkg-config \
+  && rm -rf /var/lib/apt/lists/*
+
+# Copy the entire monorepo (needed for Nx workspace + yarn workspaces)
 COPY . .
 
-# Use Yarn 4 (berry) with immutable install for reproducible builds
+# Use Yarn 4 (berry) with immutable install for reproducible builds.
+# This is where canvas (and other native deps) will attempt to build.
 RUN corepack enable && yarn install --immutable
 
-# Build order matters: shared first, then front
+# Build order matters: shared must come before front.
 RUN npx nx build twenty-shared
 RUN npx nx build twenty-front --configuration=production
 
