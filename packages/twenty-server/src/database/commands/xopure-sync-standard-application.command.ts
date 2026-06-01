@@ -1,3 +1,4 @@
+// Build marker: 2026-05-31 — force Railway rebuild so this command is included in the image.
 import chalk from 'chalk';
 import { Command } from 'nest-commander';
 
