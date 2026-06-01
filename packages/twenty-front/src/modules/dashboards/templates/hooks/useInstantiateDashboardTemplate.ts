@@ -1,6 +1,5 @@
 import { useObjectMetadataItems } from '@/object-metadata/hooks/useObjectMetadataItems';
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
-import { FIND_MANY_FRONT_COMPONENTS } from '@/front-components/graphql/queries/findManyFrontComponents';
 import { DASHBOARD_TEMPLATES } from '@/dashboards/templates/constants/DashboardTemplates';
 import { type DashboardTemplate } from '@/dashboards/templates/types/DashboardTemplate';
 import { buildDraftPageLayoutFromTemplate } from '@/dashboards/templates/utils/buildDraftPageLayoutFromTemplate';
@@ -8,12 +7,10 @@ import { useUpdatePageLayoutWithTabsAndWidgets } from '@/page-layout/hooks/useUp
 import { convertPageLayoutDraftToUpdateInput } from '@/page-layout/utils/convertPageLayoutDraftToUpdateInput';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { useLingui } from '@lingui/react/macro';
-import { useQuery } from '@apollo/client/react';
 import { isNonEmptyString } from '@sniptt/guards';
 import { AppPath, CoreObjectNameSingular } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { useNavigateApp } from '~/hooks/useNavigateApp';
-import { type FrontComponent } from '~/generated-metadata/graphql';
 
 type InstantiateOneResult = {
   status: 'successful' | 'partial' | 'failed';
@@ -25,9 +22,6 @@ export const useInstantiateDashboardTemplate = () => {
     objectNameSingular: CoreObjectNameSingular.Dashboard,
   });
   const { objectMetadataItems } = useObjectMetadataItems();
-  const { data: frontComponentsData } = useQuery<{
-    frontComponents: FrontComponent[];
-  }>(FIND_MANY_FRONT_COMPONENTS);
   const { updatePageLayoutWithTabsAndWidgets } =
     useUpdatePageLayoutWithTabsAndWidgets();
   const navigate = useNavigateApp();
@@ -51,11 +45,10 @@ export const useInstantiateDashboardTemplate = () => {
       )
       ?.fields.find((field) => field.name === fieldName)?.id;
 
-  const resolveFrontComponentId = (universalIdentifier: string) =>
-    frontComponentsData?.frontComponents.find(
-      (frontComponent) =>
-        frontComponent.universalIdentifier === universalIdentifier,
-    )?.id;
+  // Apollo / frontComponent query temporarily disabled.
+  // Live realtime widgets (LIVE_METRIC_COUNTER, REALTIME_REVENUE_LINE_CHART, etc.)
+  // will be gracefully skipped by buildDraftPageLayoutFromTemplate until this is re-enabled.
+  const resolveFrontComponentId = (_universalIdentifier: string) => undefined;
 
   // Creates a single dashboard record + populates its page layout from the
   // template, without navigating or showing snackbars. Shared by the single
