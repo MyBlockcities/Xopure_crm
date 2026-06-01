@@ -22,27 +22,30 @@
 # have access to the rest of the monorepo and the build will fail or fall back
 # to the old branding-only behavior.
 #
-# Builder image: node:22-bookworm-slim (chosen for reliable native module builds
-# such as canvas). Runtime remains the official twentycrm/twenty:v0.32.0 image.
+# Builder image: node:24-bookworm-slim. Runtime remains twentycrm/twenty:v0.32.0.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 # Builder stage — full monorepo context, builds custom frontend
 # -----------------------------------------------------------------------------
-# WHY node:22-bookworm-slim (not Alpine + Node 24):
-# - Alpine is extremely minimal and frequently fails to build native Node modules
-#   such as canvas@3.x (a transitive dependency pulled in by charting, testing,
-#   PDF, and jsdom-related packages in the Twenty ecosystem).
-# - canvas requires Cairo, Pango, JPEG, GIF, SVG, pixman, etc. at compile time.
-# - Node 24 is still young for many heavy monorepos; Node 22 LTS is the current
-#   stable, well-tested choice for Twenty-style builds.
-#
-# This combination (Debian bookworm + Node 22) gives the highest success rate
-# on Railway / CI while still producing a reasonably small builder layer.
+# WHY node:24-bookworm-slim (Debian, not Alpine):
+# - This repo REQUIRES Node ^24.5.0 (package.json `engines`, .nvmrc = 24.5.0,
+#   and yarn.config.cjs `constraints()` THROWS on mismatch). `yarn install
+#   --immutable` runs that constraint during post-install validation, so any
+#   Node major other than 24 fails the install — and therefore the whole build.
+#   (A node:22 base aborts with: "Node version v22.x doesn't match ^24.5.0".)
+# - The canvas native-build concern is about Alpine (musl, missing libs), NOT the
+#   Node major. node:24-bookworm-slim is still Debian Bookworm, and the apt-get
+#   step below installs Cairo/Pango/JPEG/GIF/SVG/pixman, so canvas@3.x still
+#   compiles cleanly. Debian Bookworm + Node 24 satisfies both constraints.
 # -----------------------------------------------------------------------------
-FROM node:22-bookworm-slim AS builder
+FROM node:24-bookworm-slim AS builder
 
 WORKDIR /app
+
+# Give the Vite/Rollup production build of twenty-front enough heap. The Nx build
+# of a monorepo frontend is memory-hungry and can OOM on constrained builders.
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 # Install native build dependencies required by canvas and similar packages.
 # These must be present BEFORE `yarn install --immutable` so that optional
