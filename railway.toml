@@ -1,18 +1,13 @@
-# Root Railway config (mostly legacy / fallback).
+# Root Railway config for the public XO Pure CRM web service.
 #
-# In practice, the individual services (web, worker, backup) are attached in
-# the Railway dashboard with their own Root Directory set to the corresponding
-# folder under `services/`.
-#
-# The actual build logic for the custom web server lives in:
-#   services/server/Dockerfile   (multi-stage build that compiles twenty-front)
-#
-# See services/server/railway.toml and the big comment block at the top of
-# services/server/Dockerfile for the required Railway dashboard settings.
+# Keep the Railway service Root Directory at `/` so the production Dockerfile
+# can build the complete monorepo. This ships the fork-built twenty-server and
+# twenty-front together; using the old frontend-only overlay caused runtime
+# version skew and left the dashboard backend unavailable.
 
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "services/server/Dockerfile"
+dockerfilePath = "packages/twenty-docker/twenty/Dockerfile"
 
 [deploy]
 restartPolicyType = "ON_FAILURE"

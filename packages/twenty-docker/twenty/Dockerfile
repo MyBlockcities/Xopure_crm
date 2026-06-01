@@ -257,3 +257,23 @@ LABEL org.opencontainers.image.source=https://github.com/twentyhq/twenty
 LABEL org.opencontainers.image.description="All-in-one Twenty image for local development and SDK usage. Includes PostgreSQL, Redis, server, and worker."
 
 ENTRYPOINT ["/init"]
+
+
+# ===========================================================================
+# Target: railway (XO Pure production server + frontend)
+#   Railway builds the final target in this file from the repository root.
+# ===========================================================================
+
+FROM twenty AS railway
+
+USER root
+COPY services/server/branding/manifest.json  /app/packages/twenty-server/dist/front/manifest.json
+COPY services/server/branding/icons/android/ /app/packages/twenty-server/dist/front/images/icons/android/
+COPY services/server/branding/icons/ios/     /app/packages/twenty-server/dist/front/images/icons/ios/
+RUN chown -R 1000:1000 /app/packages/twenty-server/dist/front
+USER 1000
+
+ENV NODE_PORT=8080
+ENV PORT=8080
+
+EXPOSE 8080

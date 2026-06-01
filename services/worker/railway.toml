@@ -2,18 +2,15 @@
 #
 # Twenty CRM — worker (background) service configuration
 #
-# CRITICAL: Keep the Docker image tag in services/worker/Dockerfile in sync
-# with services/server/Dockerfile. Mismatched versions can cause queue issues.
-#
-# It is usually best to keep the worker on the pure upstream image
-# (lightweight) while the server service uses the custom multi-stage build
-# that includes your twenty-front changes.
+# Build the same fork image as the web service so the worker and server execute
+# the same queue contracts. Keep the Railway service Root Directory at `/`.
 
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "packages/twenty-docker/twenty/Dockerfile"
 
 [deploy]
+startCommand = "yarn worker:prod"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 

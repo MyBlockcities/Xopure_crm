@@ -123,20 +123,23 @@ You're live.
 
 ## Upgrade Twenty
 
-Cadence: once per quarter, on a Tuesday morning. ~30 minutes.
+Cadence: once per quarter, on a Tuesday morning. Allow a maintenance window.
 
 1. Read https://github.com/twentyhq/twenty/releases for everything between your
    current version and the latest stable. Look for `BREAKING` markers.
-2. Edit the `FROM` line in **both** `services/server/Dockerfile` and
-   `services/worker/Dockerfile`. The tags MUST match.
-3. Commit. Push.
-4. Deploy server first (it runs migrations), then worker:
+2. Confirm the off-platform backup cron has a recent successful PostgreSQL 18
+   dump in R2 before deploying any schema migration.
+3. Build from the repository root. Both the web and worker Railway services use
+   `packages/twenty-docker/twenty/Dockerfile`, so they execute the same fork
+   revision and queue contracts.
+4. Commit. Push.
+5. Deploy the web service first. Its entrypoint runs database migrations:
    ```bash
-   cd services/server && railway up --service twenty-server
-   # Wait for healthcheck to pass — watch logs
-   cd ../worker && railway up --service twenty-worker
+   railway up --service Xopure_crm
+   # Wait for /healthz and review migration logs before continuing.
+   railway up --service Worker
    ```
-5. Smoke test: log in, create a contact, fire a webhook.
+6. Smoke test: log in, open Dashboards, create a contact, and fire a webhook.
 
 **If anything looks wrong:** Railway dashboard → twenty-server → Deployments →
 click the previous deploy → "Redeploy". The previous image starts back up in
@@ -230,6 +233,8 @@ Check `IS_SIGN_UP_DISABLED` is `true` on twenty-server and redeploy.
 1. Railway dashboard → twenty-backup → Deployments — should show recent runs
 2. Check logs of last few invocations
 3. Verify all `R2_*` env vars are set
+4. Confirm `R2_ACCESS_KEY_ID` is the real 32-character Cloudflare R2 access key,
+   not a placeholder or account identifier.
 4. Manually trigger: Railway dashboard → twenty-backup → Run
 
 ---

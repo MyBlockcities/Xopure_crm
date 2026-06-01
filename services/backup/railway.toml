@@ -4,7 +4,7 @@
 
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "services/backup/Dockerfile"
 
 [deploy]
 # Cron service: runs once per schedule and exits.

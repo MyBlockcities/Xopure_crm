@@ -45,8 +45,15 @@ register_background_jobs() {
     fi
 }
 
-setup_and_migrate_db
-register_background_jobs
+case "$*" in
+    *worker:prod*|*queue-worker*)
+        echo "Worker process detected, skipping web startup database setup and cron registration..."
+        ;;
+    *)
+        setup_and_migrate_db
+        register_background_jobs
+        ;;
+esac
 
 # Continue with the original Docker command
 exec "$@"

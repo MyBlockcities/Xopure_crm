@@ -1,8 +1,8 @@
 
 // Sync products, ambassadors (affiliates), customers, periods, and orders from
-// the XO Pure Supabase project into the Twenty CRM workspace. Idempotent: tracks state in
-// public.crm_sync_map on the Supabase side, keyed by source_id. The map is
-// compatibility-read-only: this script never mutates Supabase.
+// the XO Pure Supabase project into the Twenty CRM workspace. Existing
+// public.crm_sync_map rows are read for compatibility when available. The map
+// is optional and read-only: this script never mutates Supabase.
 //
 // Env required:
 //   VITE_SUPABASE_URL        Supabase REST URL
@@ -139,6 +139,30 @@ const shortHash = (value) =>
   crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 10);
 
 const log = (...args) => console.log('[sync]', ...args);
+const isDryRunId = (value) =>
+  typeof value === 'string' && value.startsWith('dryrun:');
+let canReadSyncMap = true;
+
+const isMissingSyncMapError = (error) =>
+  error?.code === '42P01' ||
+  (error?.status === 404 &&
+    String(error?.body).includes("public.crm_sync_map"));
+
+const readSyncMap = async (reader) => {
+  if (!canReadSyncMap) return undefined;
+
+  try {
+    return await reader();
+  } catch (error) {
+    if (!isMissingSyncMapError(error)) throw error;
+
+    canReadSyncMap = false;
+    log(
+      'public.crm_sync_map is unavailable; continuing with Twenty-side stable-key lookups',
+    );
+    return undefined;
+  }
+};
 
 const quoteIdent = (value) => {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
@@ -523,53 +547,61 @@ const getSyncMap = async ({
   twentyObject = 'person',
 }) => {
   if (supabasePg) {
-    const mapRes = await supabasePg.query(
-      `select twenty_record_id, content_hash from public.crm_sync_map
-       where source_system=$1 and source_table=$2 and source_id=$3
-         and twenty_object=$4`,
-      [sourceSystem, sourceTable, sourceId, twentyObject],
-    );
+    return await readSyncMap(async () => {
+      const mapRes = await supabasePg.query(
+        `select twenty_record_id, content_hash from public.crm_sync_map
+         where source_system=$1 and source_table=$2 and source_id=$3
+           and twenty_object=$4`,
+        [sourceSystem, sourceTable, sourceId, twentyObject],
+      );
 
-    return mapRes.rows[0];
+      return mapRes.rows[0];
+    });
   }
 
-  const rows = await supabaseRest('crm_sync_map', {
-    params: {
-      select: 'twenty_record_id,content_hash',
-      source_system: `eq.${sourceSystem}`,
-      source_table: `eq.${sourceTable}`,
-      source_id: `eq.${sourceId}`,
-      twenty_object: `eq.${twentyObject}`,
-      limit: 1,
-    },
-  });
+  return await readSyncMap(async () => {
+    const rows = await supabaseRest('crm_sync_map', {
+      params: {
+        select: 'twenty_record_id,content_hash',
+        source_system: `eq.${sourceSystem}`,
+        source_table: `eq.${sourceTable}`,
+        source_id: `eq.${sourceId}`,
+        twenty_object: `eq.${twentyObject}`,
+        limit: 1,
+      },
+    });
 
-  return rows[0];
+    return rows[0];
+  });
 };
 
 const getSyncMapByTwentyId = async ({ twentyObject = 'person', twentyId }) => {
   if (supabasePg) {
-    const mapRes = await supabasePg.query(
-      `select source_system, source_schema, source_table, source_id
-         from public.crm_sync_map
-        where twenty_object=$1 and twenty_record_id=$2
-        limit 1`,
-      [twentyObject, twentyId],
-    );
+    return await readSyncMap(async () => {
+      const mapRes = await supabasePg.query(
+        `select source_system, source_schema, source_table, source_id
+           from public.crm_sync_map
+          where twenty_object=$1 and twenty_record_id=$2
+          limit 1`,
+        [twentyObject, twentyId],
+      );
 
-    return mapRes.rows[0];
+      return mapRes.rows[0];
+    });
   }
 
-  const rows = await supabaseRest('crm_sync_map', {
-    params: {
-      select: 'source_system,source_schema,source_table,source_id',
-      twenty_object: `eq.${twentyObject}`,
-      twenty_record_id: `eq.${twentyId}`,
-      limit: 1,
-    },
-  });
+  return await readSyncMap(async () => {
+    const rows = await supabaseRest('crm_sync_map', {
+      params: {
+        select: 'source_system,source_schema,source_table,source_id',
+        twenty_object: `eq.${twentyObject}`,
+        twenty_record_id: `eq.${twentyId}`,
+        limit: 1,
+      },
+    });
 
-  return rows[0];
+    return rows[0];
+  });
 };
 
 const upsertSyncMap = async ({
@@ -584,10 +616,9 @@ const upsertSyncMap = async ({
 const listAffiliates = async () => {
   if (supabasePg) {
     const { rows } = await supabasePg.query(
-      `select id, user_id, email, name, tracking_code, parent_id, status,
-              account_type, ambassador_conversion_date, active_customer_count,
-              personal_volume_cents, team_volume_cents, career_rank,
-              paid_as_rank, rank, created_at, updated_at
+      `select id, email, name, tracking_code, parent_id, status, account_type,
+              active_customer_count, personal_volume_cents, team_volume_cents,
+              career_rank, paid_as_rank, rank, created_at
          from public.affiliates
         order by created_at`,
     );
@@ -597,7 +628,7 @@ const listAffiliates = async () => {
   return await supabaseRest('affiliates', {
     params: {
       select:
-        'id,user_id,email,name,tracking_code,parent_id,status,account_type,ambassador_conversion_date,active_customer_count,personal_volume_cents,team_volume_cents,career_rank,paid_as_rank,rank,created_at,updated_at',
+        'id,email,name,tracking_code,parent_id,status,account_type,active_customer_count,personal_volume_cents,team_volume_cents,career_rank,paid_as_rank,rank,created_at',
       order: 'created_at.asc',
     },
   });
@@ -607,7 +638,7 @@ const listProducts = async () => {
   if (supabasePg) {
     const { rows } = await supabasePg.query(
       `select id, sku, name, description, price_cents, currency, category,
-              active, metadata, slug, product_url, cv_amount, created_at, updated_at
+              active, metadata, cv_amount_cents, created_at, updated_at
          from public.products
         order by created_at`,
     );
@@ -617,7 +648,7 @@ const listProducts = async () => {
   return await supabaseRest('products', {
     params: {
       select:
-        'id,sku,name,description,price_cents,currency,category,active,metadata,slug,product_url,cv_amount,created_at,updated_at',
+        'id,sku,name,description,price_cents,currency,category,active,metadata,cv_amount_cents,created_at,updated_at',
       order: 'created_at.asc',
     },
   });
@@ -626,11 +657,9 @@ const listProducts = async () => {
 const listOrders = async () => {
   if (supabasePg) {
     const { rows } = await supabasePg.query(
-      `select id, user_email, subtotal_cents, discount_amount_cents,
-              shipping_cents, tax_cents, total_cents, refund_amount_cents,
-              currency, affiliate_chain, commission_plan_id, commission_amounts,
-              payment_gateway, payment_status, gateway_payload, shipping_address,
-              items, event_type, cv_amount, buyer_type, created_at, updated_at
+      `select id, user_email, subtotal_cents, total_cents, currency,
+              affiliate_chain, payment_gateway, payment_status, gateway_payload,
+              shipping_address, items, cv_amount, created_at
          from public.orders
         where user_email is not null and length(user_email) > 0
         order by created_at`,
@@ -641,7 +670,7 @@ const listOrders = async () => {
   return await supabaseRest('orders', {
     params: {
       select:
-        'id,user_email,subtotal_cents,discount_amount_cents,shipping_cents,tax_cents,total_cents,refund_amount_cents,currency,affiliate_chain,commission_plan_id,commission_amounts,payment_gateway,payment_status,gateway_payload,shipping_address,items,event_type,cv_amount,buyer_type,created_at,updated_at',
+        'id,user_email,subtotal_cents,total_cents,currency,affiliate_chain,payment_gateway,payment_status,gateway_payload,shipping_address,items,cv_amount,created_at',
       user_email: 'not.is.null',
       order: 'created_at.asc',
     },
@@ -1070,6 +1099,11 @@ const linkAmbassadorSponsors = async (affiliateRows, ambassadorIdBySourceId) => 
     }
 
     if (DRY_RUN) {
+      if (isDryRunId(childId) || isDryRunId(sponsorId)) {
+        stats.sponsorLinks.linked += 1;
+        continue;
+      }
+
       const existing = await twenty.query(
         `select "sponsorId"
            from ${tableRef(AMBASSADOR_TABLE)}
@@ -1115,7 +1149,7 @@ const upsertProduct = async (row) => {
     format: mapProductFormat(row),
     retailPriceMicros: centsToAmountMicros(row.price_cents),
     cvAmountMicros: centsToAmountMicros(
-      row.cv_amount ?? Math.round(Number(row.price_cents ?? 0) * 0.5),
+      row.cv_amount_cents ?? Math.round(Number(row.price_cents ?? 0) * 0.5),
     ),
     currency: row.currency ?? DEFAULT_CURRENCY_CODE,
     stripePriceId:
