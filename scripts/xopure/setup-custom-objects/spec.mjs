@@ -138,7 +138,7 @@ const period = {
     { name: 'totalRetail', label: 'Total Retail', type: 'CURRENCY', icon: 'IconCurrencyDollar' },
     { name: 'totalCV', label: 'Total CV', type: 'CURRENCY', icon: 'IconCoin' },
     { name: 'totalPayouts', label: 'Total Payouts', type: 'CURRENCY', icon: 'IconCash' },
-    { name: 'payoutPercentOfRetail', label: 'Payout % of Retail', type: 'NUMERIC', icon: 'IconPercentage' },
+    { name: 'payoutPercentOfRetail', label: 'Payout % of Retail', type: 'NUMBER', icon: 'IconPercentage' },
     { name: 'frozenAt', label: 'Frozen At', type: 'DATE_TIME', icon: 'IconLock' },
     { name: 'internalNotes', label: 'Internal Notes', type: 'RICH_TEXT', icon: 'IconNote', description: 'Twenty-owned. Finance notes.' },
   ],

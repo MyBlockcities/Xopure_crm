@@ -158,7 +158,7 @@ const objectIdByName = new Map(
 const listFields = async (objectMetadataId) => {
   const data = await graphql(
     '/metadata',
-    `query($filter: objectFilter) {
+    `query($filter: ObjectFilter) {
       objects(paging: { first: 200 }, filter: $filter) {
         edges { node { id nameSingular fields(paging: { first: 500 }) { edges { node { id name type } } } } }
       }
