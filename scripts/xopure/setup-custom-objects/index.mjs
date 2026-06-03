@@ -267,23 +267,30 @@ const ensureRelation = async (rel) => {
     return;
   }
 
+  // Twenty 2.x removed createOneRelation. Relations are now created as a
+  // RELATION-type field via createOneField, with a relationCreationPayload
+  // describing the target object + the auto-generated reverse field.
   await graphql(
     '/metadata',
-    `mutation($input: CreateOneRelationInput!) {
-      createOneRelation(input: $input) { id relationType }
+    `mutation($input: CreateOneFieldMetadataInput!) {
+      createOneField(input: $input) { id }
     }`,
     {
       input: {
-        relation: {
-          relationType: rel.relationType,
-          fromObjectMetadataId: fromId,
-          toObjectMetadataId: toId,
-          fromName: rel.from.name,
-          toName: rel.to.name,
-          fromLabel: rel.from.label,
-          toLabel: rel.to.label,
-          fromIcon: rel.from.icon,
-          toIcon: rel.to.icon,
+        field: {
+          type: 'RELATION',
+          name: rel.from.name,
+          label: rel.from.label,
+          icon: rel.from.icon,
+          objectMetadataId: fromId,
+          isActive: true,
+          isCustom: true,
+          relationCreationPayload: {
+            targetObjectMetadataId: toId,
+            targetFieldLabel: rel.to.label,
+            targetFieldIcon: rel.to.icon,
+            type: rel.relationType,
+          },
         },
       },
     },

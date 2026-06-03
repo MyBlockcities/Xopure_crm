@@ -418,6 +418,11 @@ const insertRecord = async (tableName, values) => {
     createdBySource: values.createdBySource ?? 'IMPORT',
     createdByName: values.createdByName ?? IMPORTED_BY_NAME,
     createdByWorkspaceMemberId: values.createdByWorkspaceMemberId ?? null,
+    // Twenty 2.x added a required `updatedBy` actor composite (NOT NULL).
+    // filterExistingColumns drops these on older schemas that lack them.
+    updatedBySource: values.updatedBySource ?? 'IMPORT',
+    updatedByName: values.updatedByName ?? IMPORTED_BY_NAME,
+    updatedByWorkspaceMemberId: values.updatedByWorkspaceMemberId ?? null,
     createdAt: values.createdAt ?? new Date().toISOString(),
     updatedAt: values.updatedAt ?? new Date().toISOString(),
   });
@@ -868,8 +873,9 @@ const upsertPerson = async ({
       const ins = await twenty.query(
         `insert into "${WS}".person
           ("nameFirstName","nameLastName","emailsPrimaryEmail","jobTitle",
-           position,"createdBySource","createdByName","createdByWorkspaceMemberId","createdAt","updatedAt")
-         values ($1,$2,$3,$4,$5,'IMPORT',$6,null,now(),now())
+           position,"createdBySource","createdByName","createdByWorkspaceMemberId",
+           "updatedBySource","updatedByName","updatedByWorkspaceMemberId","createdAt","updatedAt")
+         values ($1,$2,$3,$4,$5,'IMPORT',$6,null,'IMPORT',$6,null,now(),now())
          returning id`,
         [
           payload.firstName,
