@@ -15,11 +15,21 @@ export const TICKET_DUE_DATE_FIELD_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 export const TICKET_START_DATE_FIELD_ID = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e';
 export const TICKET_LABELS_FIELD_ID = 'c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f';
 export const TICKET_METADATA_FIELD_ID = 'd4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a';
+// Task sync extension fields (on standard task object)
+export const TASK_MULTICA_ISSUE_ID_FIELD_ID = 'a4b5c6d7-e8f9-4a0b-8c1d-2e3f4a5b6c7d';
+export const TASK_MULTICA_IDENTIFIER_FIELD_ID = 'b5c6d7e8-f9a0-4b1c-9d2e-3f4a5b6c7d8e';
+export const TASK_LAST_SYNCED_FROM_MULTICA_FIELD_ID = 'c6d7e8f9-a0b1-4c2d-8e3f-4a5b6c7d8e9f';
+export const TASK_MULTICA_PRIORITY_FIELD_ID = 'd7e8f9a0-b1c2-4d3e-9f4a-5b6c7d8e9f0a';
 
 // Logic functions
 export const CREATE_MULTICA_ISSUE_FUNCTION_ID = 'f3ac01c9-bc90-42c1-aad2-dd5db4acbaf3';
 export const UPDATE_MULTICA_ISSUE_FUNCTION_ID = '9bcd2638-8a22-46e7-af28-05b2b35ad727';
 export const MULTICA_SYNC_WEBHOOK_FUNCTION_ID = '6a803015-3d82-47a9-84df-566d87183ef7';
+
+// Task sync logic functions
+export const CREATE_TASK_MULTICA_ISSUE_FUNCTION_ID = 'd7e8f9a0-b1c2-4d3e-8f4a-5b6c7d8e9f0a';
+export const UPDATE_TASK_MULTICA_ISSUE_FUNCTION_ID = 'e8f9a0b1-c2d3-4e4f-8a5b-6c7d8e9f0a1b';
+export const TASK_SYNC_WEBHOOK_FUNCTION_ID = 'f9a0b1c2-d3e4-4f5a-8b6c-7d8e9f0a1b2c';
 
 // Front components
 export const CREATE_TICKET_FORM_COMPONENT_ID = 'c9c08263-0e06-4bf0-99ce-48d43ba87c60';

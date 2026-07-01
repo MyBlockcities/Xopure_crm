@@ -42,3 +42,12 @@ export type CreateIssueResult =
 export type UpdateIssueResult =
   | { success: true; issue: MulticaIssue }
   | { success: false; error: string };
+
+/**
+ * Minimal interface for CoreApiClient methods used by sync handlers.
+ * Enables dependency injection for testing.
+ */
+export interface MulticaSyncClient {
+  query: (opts: { query: string; variables: Record<string, unknown> }) => Promise<unknown>;
+  mutation: (opts: { query: string; variables: Record<string, unknown> }) => Promise<unknown>;
+}
