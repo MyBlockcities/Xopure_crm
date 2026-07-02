@@ -1,14 +1,26 @@
 import process from 'process';
 
 import { metrics as otelMetrics } from '@opentelemetry/api';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
+import {
+  defaultResource,
+  resourceFromAttributes,
+} from '@opentelemetry/resources';
 import {
   AggregationTemporality,
   ConsoleMetricExporter,
   MeterProvider,
   PeriodicExportingMetricReader,
 } from '@opentelemetry/sdk-metrics';
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import {
+  ATTR_DEPLOYMENT_ENVIRONMENT,
+  ATTR_SERVICE_NAME,
+  ATTR_SERVICE_VERSION,
+} from '@opentelemetry/semantic-conventions';
 import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
 
@@ -23,6 +35,62 @@ const meterDrivers = parseArrayEnvVar(
   Object.values(MeterDriver),
   [],
 );
+
+const DEFAULT_OTLP_TRACE_ENDPOINT = 'http://127.0.0.1:4318/v1/traces';
+
+const hasOtlpTraceExporter = () =>
+  parseArrayEnvVar(process.env.OTEL_TRACES_EXPORTER, ['otlp'], []).includes(
+    'otlp',
+  );
+
+const getOtlpTraceEndpoint = () => {
+  if (process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT) {
+    return process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
+  }
+
+  if (hasOtlpTraceExporter()) {
+    if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+      return `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT.replace(/\/$/, '')}/v1/traces`;
+    }
+
+    return DEFAULT_OTLP_TRACE_ENDPOINT;
+  }
+
+  return null;
+};
+
+const otlpTraceEndpoint = getOtlpTraceEndpoint();
+
+if (otlpTraceEndpoint) {
+  const tracingSdk = new NodeSDK({
+    resource: defaultResource().merge(
+      resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? 'twenty-server',
+        [ATTR_SERVICE_VERSION]: process.env.APP_VERSION ?? 'unknown',
+        [ATTR_DEPLOYMENT_ENVIRONMENT]:
+          process.env.SENTRY_ENVIRONMENT ??
+          process.env.NODE_ENV ??
+          NodeEnvironment.DEVELOPMENT,
+      }),
+    ),
+    traceExporter: new OTLPTraceExporter({
+      url: otlpTraceEndpoint,
+    }),
+    instrumentations: [
+      getNodeAutoInstrumentations({
+        '@opentelemetry/instrumentation-fs': {
+          enabled: false,
+        },
+      }),
+    ],
+  });
+
+  tracingSdk.start();
+
+  process.once('SIGTERM', () => {
+    void tracingSdk.shutdown();
+  });
+}
 
 if (process.env.EXCEPTION_HANDLER_DRIVER === ExceptionHandlerDriver.SENTRY) {
   Sentry.init({
