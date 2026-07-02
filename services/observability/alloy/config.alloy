@@ -1,0 +1,63 @@
+// XO Pure Observability — Grafana Alloy
+// Public ingress is intentionally disabled. OTLP is bound to the Hetzner
+// Tailscale IP only; admin UI is bound by the container command to localhost.
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// Receive traces, metrics, and logs from trusted tailnet clients only.
+otelcol.receiver.otlp "tailnet" {
+  grpc { endpoint = "100.119.117.43:4317" }
+  http { endpoint = "100.119.117.43:4318" }
+
+  output {
+    metrics = [otelcol.processor.batch.default.input]
+    logs    = [otelcol.processor.batch.default.input]
+    traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    metrics = [otelcol.exporter.prometheus.default.input]
+    logs    = [otelcol.exporter.loki.default.input]
+    traces  = [otelcol.exporter.otlphttp.tempo.input]
+  }
+}
+
+// Metrics route to local Prometheus remote-write receiver.
+otelcol.exporter.prometheus "default" {
+  forward_to = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.remote_write "local" {
+  endpoint {
+    url = "http://127.0.0.1:9090/api/v1/write"
+  }
+}
+
+// Logs route to local Loki.
+otelcol.exporter.loki "default" {
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://127.0.0.1:3200/loki/api/v1/push"
+  }
+}
+
+// Traces route to local Tempo OTLP/HTTP.
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "http://127.0.0.1:4318"
+  }
+}
+
+// Alloy self-metrics stay local and flow into Prometheus.
+prometheus.scrape "alloy" {
+  targets    = [{"__address__" = "127.0.0.1:12345"}]
+  forward_to = [prometheus.remote_write.local.receiver]
+}
