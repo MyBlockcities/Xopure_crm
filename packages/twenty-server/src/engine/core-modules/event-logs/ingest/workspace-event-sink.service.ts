@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import {
   EVENT_SINKS,
@@ -9,6 +9,8 @@ import { type WorkspaceEventEnvelope } from 'src/engine/core-modules/event-logs/
 
 @Injectable()
 export class WorkspaceEventSinkService {
+  private readonly logger = new Logger(WorkspaceEventSinkService.name);
+
   constructor(
     @Inject(EVENT_SINKS)
     private readonly sinks: EventSink[],
@@ -25,6 +27,25 @@ export class WorkspaceEventSinkService {
   }
 
   private async persist(events: WorkspaceEventEnvelope[]): Promise<void> {
-    await Promise.all(this.sinks.map((sink) => sink.write(events)));
+    const results = await Promise.allSettled(
+      this.sinks.map((sink) => sink.write(events)),
+    );
+
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        return;
+      }
+
+      const sinkName = this.sinks[index]?.constructor?.name ?? 'UnknownSink';
+      const reason =
+        result.reason instanceof Error
+          ? result.reason.stack
+          : JSON.stringify(result.reason);
+
+      this.logger.error(
+        `Event sink ${sinkName} failed; continuing with remaining sinks`,
+        reason,
+      );
+    });
   }
 }

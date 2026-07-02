@@ -14,6 +14,7 @@ import {
   EVENT_SINKS,
   type EventSink,
 } from 'src/engine/core-modules/event-logs/ingest/event-sink';
+import { OtlpEventSink } from 'src/engine/core-modules/event-logs/ingest/otlp-event.sink';
 import { WorkspaceEventSinkService } from 'src/engine/core-modules/event-logs/ingest/workspace-event-sink.service';
 import { EventLogLiveModule } from 'src/engine/core-modules/event-logs/live/event-log-live.module';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
@@ -24,10 +25,12 @@ const eventSinksProvider = {
     twentyConfigService: TwentyConfigService,
     clickHouseEventSink: ClickHouseEventSink,
     consoleEventSink: ConsoleEventSink,
+    otlpEventSink: OtlpEventSink,
   ): EventSink[] => {
     const sinkByName: Record<string, EventSink> = {
       clickhouse: clickHouseEventSink,
       console: consoleEventSink,
+      otlp: otlpEventSink,
     };
 
     const configuredSinkNames = twentyConfigService.get('EVENT_SINKS');
@@ -48,7 +51,12 @@ const eventSinksProvider = {
       .map((name) => sinkByName[name.toLowerCase()])
       .filter(isDefined);
   },
-  inject: [TwentyConfigService, ClickHouseEventSink, ConsoleEventSink],
+  inject: [
+    TwentyConfigService,
+    ClickHouseEventSink,
+    ConsoleEventSink,
+    OtlpEventSink,
+  ],
 };
 
 @Module({
@@ -56,6 +64,7 @@ const eventSinksProvider = {
   providers: [
     ClickHouseEventSink,
     ConsoleEventSink,
+    OtlpEventSink,
     eventSinksProvider,
     WorkspaceEventSinkService,
     CreateEventLogFromInternalEvent,

@@ -1,4 +1,4 @@
-export const KNOWN_SINK_NAMES = ['clickhouse', 'console'] as const;
+export const KNOWN_SINK_NAMES = ['clickhouse', 'console', 'otlp'] as const;
 
 export const getAvailableSinkNames = (
   configuredSinkNames: string[],
@@ -12,6 +12,10 @@ export const getAvailableSinkNames = (
     }
 
     if (lowerCasedName === 'console') {
+      return true;
+    }
+
+    if (lowerCasedName === 'otlp') {
       return true;
     }
 

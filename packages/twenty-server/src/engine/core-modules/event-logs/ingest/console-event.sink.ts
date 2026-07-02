@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { type EventSink } from 'src/engine/core-modules/event-logs/ingest/event-sink';
+import { scrubEventPayload } from 'src/engine/core-modules/event-logs/ingest/event-payload-scrubber';
 import { type WorkspaceEventEnvelope } from 'src/engine/core-modules/event-logs/types/workspace-event-envelope.type';
 
 @Injectable()
@@ -9,25 +10,27 @@ export class ConsoleEventSink implements EventSink {
 
   async write(events: WorkspaceEventEnvelope[]): Promise<void> {
     for (const event of events) {
-      if (event.table === 'applicationLog') {
-        const context = `${event.row.logicFunctionName}:${event.row.executionId}`;
+      const row = scrubEventPayload(event.row) as typeof event.row;
 
-        switch (event.row.level) {
+      if (event.table === 'applicationLog') {
+        const context = `${row.logicFunctionName}:${row.executionId}`;
+
+        switch (row.level) {
           case 'ERROR':
-            this.logger.error(event.row.message, undefined, context);
+            this.logger.error(row.message, undefined, context);
             break;
           case 'WARN':
-            this.logger.warn(event.row.message, context);
+            this.logger.warn(row.message, context);
             break;
           case 'DEBUG':
-            this.logger.debug(event.row.message, context);
+            this.logger.debug(row.message, context);
             break;
           default:
-            this.logger.log(event.row.message, context);
+            this.logger.log(row.message, context);
             break;
         }
       } else {
-        this.logger.log(JSON.stringify(event.row), event.table);
+        this.logger.log(JSON.stringify(row), event.table);
       }
     }
   }
