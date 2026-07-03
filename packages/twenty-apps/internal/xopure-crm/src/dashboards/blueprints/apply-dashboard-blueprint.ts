@@ -5,6 +5,7 @@ import type {
   DashboardTabBlueprint,
   DashboardWidgetBlueprint,
 } from './dashboard-blueprint.type';
+import { resolveDashboardFilter } from './resolve-dashboard-filter';
 
 export type DashboardApplyApiConfig = {
   accessToken: string;
@@ -578,7 +579,7 @@ const buildGraphConfiguration = (
       displayDataLabel: configuration.displayDataLabel,
       prefix: configuration.prefix,
       suffix: configuration.suffix,
-      filter: configuration.filter,
+      filter: resolveDashboardFilter(objectMetadata, configuration.filter),
     };
   }
 
@@ -601,7 +602,7 @@ const buildGraphConfiguration = (
       hideEmptyCategory: configuration.hideEmptyCategory,
       color: configuration.color,
       description: configuration.description,
-      filter: configuration.filter,
+      filter: resolveDashboardFilter(objectMetadata, configuration.filter),
     };
   }
 
@@ -622,7 +623,7 @@ const buildGraphConfiguration = (
     displayLegend: configuration.displayLegend,
     color: configuration.color,
     description: configuration.description,
-    filter: configuration.filter,
+    filter: resolveDashboardFilter(objectMetadata, configuration.filter),
     timezone: configuration.timezone,
     firstDayOfTheWeek: configuration.firstDayOfTheWeek,
   };

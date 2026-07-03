@@ -22,14 +22,22 @@ export class WorkspaceEventSinkService {
   }
 
   async ingest(events: WorkspaceEventEnvelope[]): Promise<void> {
-    await this.persist(events);
+    const allFailed = await this.persist(events);
     await this.workspaceEventLiveService.publishWatched(events);
+
+    if (allFailed) {
+      throw new Error(
+        'All event sinks failed to write; check server logs for individual failure details',
+      );
+    }
   }
 
-  private async persist(events: WorkspaceEventEnvelope[]): Promise<void> {
+  private async persist(events: WorkspaceEventEnvelope[]): Promise<boolean> {
     const results = await Promise.allSettled(
       this.sinks.map((sink) => sink.write(events)),
     );
+
+    const failedNames: string[] = [];
 
     results.forEach((result, index) => {
       if (result.status === 'fulfilled') {
@@ -46,6 +54,9 @@ export class WorkspaceEventSinkService {
         `Event sink ${sinkName} failed; continuing with remaining sinks`,
         reason,
       );
+      failedNames.push(sinkName);
     });
+
+    return this.sinks.length > 0 && failedNames.length === this.sinks.length;
   }
 }

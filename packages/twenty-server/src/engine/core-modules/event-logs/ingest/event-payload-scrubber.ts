@@ -13,15 +13,20 @@ const SENSITIVE_KEY_NAMES = new Set([
   'token',
 ]);
 
-const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, '');
+const normalizeKey = (key: string) =>
+  key.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-const isSensitiveKey = (key: string) => SENSITIVE_KEY_NAMES.has(normalizeKey(key));
+const isSensitiveKey = (key: string) =>
+  SENSITIVE_KEY_NAMES.has(normalizeKey(key));
 
 const redactSensitiveString = (value: string) =>
   value
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, REDACTED)
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${REDACTED}`)
-    .replace(/\b(api[_-]?key|token|secret|password)=([^&\s]+)/gi, `$1=${REDACTED}`);
+    .replace(
+      /\b(api[_-]?key|token|secret|password)=([^&\s]+)/gi,
+      `$1=${REDACTED}`,
+    );
 
 export const scrubPayload = (
   value: unknown,
@@ -55,7 +60,13 @@ export const scrubPayload = (
   if (Array.isArray(value)) {
     const scrubbedItems = value
       .slice(0, MAX_ARRAY_LENGTH)
-      .map((item) => scrubPayload(item, maxDepth, depth));
+      .map((item) =>
+        scrubPayload(
+          item,
+          maxDepth,
+          typeof item === 'object' && item !== null ? depth + 1 : depth,
+        ),
+      );
 
     return value.length > MAX_ARRAY_LENGTH
       ? [...scrubbedItems, '[TRUNCATED]']
@@ -70,7 +81,9 @@ export const scrubPayload = (
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, item]) => [
         key,
-        isSensitiveKey(key) ? REDACTED : scrubPayload(item, maxDepth, depth + 1),
+        isSensitiveKey(key)
+          ? REDACTED
+          : scrubPayload(item, maxDepth, depth + 1),
       ]),
     );
   }

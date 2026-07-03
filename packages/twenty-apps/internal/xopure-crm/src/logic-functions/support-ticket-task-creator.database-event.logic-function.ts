@@ -181,33 +181,116 @@ export const handler = async (input: Input): Promise<Output> => {
     recordsFailed: 0,
   });
 
-  try {
-    const taskResult = await client.mutation({
-      createTask: {
-        __args: {
-          data: {
-            body: `Follow up on support ticket: ${subject}`,
-            dueAt,
+  // Query for existing TaskTarget to support idempotent retries.
+  // When a support ticket re-triggers the handler, we reuse the
+  // Task and TaskTarget already created for this supportTicketId.
+  let existingTaskId: string | undefined;
+  let existingTaskTargetId: string | undefined;
+
+  if (supportTicketId) {
+    try {
+      const existingResult = await client.query({
+        taskTargets: {
+          __args: {
+            filter: {
+              targetXopureSupportTicketId: { eq: supportTicketId },
+            },
+            first: 1,
+          },
+          edges: {
+            node: {
+              id: true,
+              task: {
+                id: true,
+              },
+            },
           },
         },
-        id: true,
-      },
-    });
+      });
 
-    const taskId = extractId(taskResult, 'createTask');
+      // Inline extraction — no unchecked casts on external data.
+      if (
+        typeof existingResult === 'object' &&
+        existingResult !== null &&
+        'taskTargets' in existingResult
+      ) {
+        const container = (existingResult as Record<string, unknown>)
+          .taskTargets;
+        if (
+          typeof container === 'object' &&
+          container !== null &&
+          'edges' in container
+        ) {
+          const edges = (container as Record<string, unknown>)
+            .edges as Array<unknown>;
+          if (Array.isArray(edges) && edges.length > 0) {
+            const firstEdge = edges[0];
+            if (
+              typeof firstEdge === 'object' &&
+              firstEdge !== null &&
+              'node' in firstEdge
+            ) {
+              const node = (firstEdge as Record<string, unknown>)
+                .node as Record<string, unknown>;
+              if (
+                typeof node === 'object' &&
+                node !== null &&
+                typeof node.id === 'string'
+              ) {
+                existingTaskTargetId = node.id;
+                if (
+                  typeof node.task === 'object' &&
+                  node.task !== null &&
+                  typeof (node.task as Record<string, unknown>).id === 'string'
+                ) {
+                  existingTaskId = (node.task as Record<string, unknown>)
+                    .id as string;
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Query failure shouldn't block the happy path; proceed as if no
+      // existing TaskTarget was found.
+    }
+  }
 
-    if (taskId && supportTicketId) {
-      await client.mutation({
-        createTaskTarget: {
+  try {
+    let taskId: string | undefined;
+
+    if (existingTaskId) {
+      // Reuse the existing Task from a prior invocation
+      taskId = existingTaskId;
+    } else {
+      const taskResult = await client.mutation({
+        createTask: {
           __args: {
             data: {
-              taskId,
-              targetXopureSupportTicketId: supportTicketId,
+              body: `Follow up on support ticket: ${subject}`,
+              dueAt,
             },
           },
           id: true,
         },
       });
+
+      taskId = extractId(taskResult, 'createTask');
+
+      if (taskId && supportTicketId && !existingTaskTargetId) {
+        await client.mutation({
+          createTaskTarget: {
+            __args: {
+              data: {
+                taskId,
+                targetXopureSupportTicketId: supportTicketId,
+              },
+            },
+            id: true,
+          },
+        });
+      }
     }
 
     let multicaIssueId: string | undefined;
@@ -250,8 +333,10 @@ export const handler = async (input: Input): Promise<Output> => {
           );
 
           if (!response.ok) {
-            const errorBody = await response.text().catch(() => 'Unknown error');
-            multicaError = `Multica API returned ${response.status}: ${errorBody}`;
+            // Sanitized: only the HTTP status code is exposed in the error.
+            // The response body is deliberately omitted to prevent leaking
+            // PII such as email addresses, auth tokens, or ticket subject text.
+            multicaError = `Multica API error (${response.status})`;
           } else {
             const issue = await response.json();
             if (
@@ -263,15 +348,21 @@ export const handler = async (input: Input): Promise<Output> => {
               multicaIssueId = issue.id;
 
               if (supportTicketId) {
-                await client.mutation({
-                  updateXopureSupportTicket: {
-                    __args: {
-                      id: supportTicketId,
-                      data: { multicaIssueId },
+                try {
+                  await client.mutation({
+                    updateXopureSupportTicket: {
+                      __args: {
+                        id: supportTicketId,
+                        data: { multicaIssueId },
+                      },
+                      id: true,
                     },
-                    id: true,
-                  },
-                });
+                  });
+                } catch {
+                  // Write-back failed but Multica issue was created. Signal
+                  // the failure without leaking the mutation error body.
+                  multicaError = 'TICKET_WRITE_BACK_FAIL';
+                }
               }
             } else {
               multicaError = 'Multica API returned no issue id.';

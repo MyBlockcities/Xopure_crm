@@ -168,7 +168,9 @@ const expandWebhookMappingInputs = (
     record: payload.record,
   };
 
-  if (payload.table !== 'orders' || !hasOrderPaymentFields(payload.record)) {
+  // DELETE on orders: always produce a payment mapping for tombstoning,
+  // even if old_record lacks payment fields (they may have been nulled before deletion).
+  if (payload.table !== 'orders' || (payload.type !== 'DELETE' && !hasOrderPaymentFields(payload.record))) {
     return [baseInput];
   }
 

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { ClickHouseService } from 'src/database/clickHouse/clickHouse.service';
+import { scrubEventPayload } from 'src/engine/core-modules/event-logs/ingest/event-payload-scrubber';
 import { type EventSink } from 'src/engine/core-modules/event-logs/ingest/event-sink';
 import { type WorkspaceEventEnvelope } from 'src/engine/core-modules/event-logs/types/workspace-event-envelope.type';
 
@@ -18,7 +19,7 @@ export class ClickHouseEventSink implements EventSink {
     for (const event of events) {
       const rows = rowsByTable.get(event.table) ?? [];
 
-      rows.push(event.row);
+      rows.push(scrubEventPayload(event.row) as Record<string, unknown>);
       rowsByTable.set(event.table, rows);
     }
 

@@ -1,6 +1,12 @@
 // XO Pure Observability — Grafana Alloy
 // Public ingress is intentionally disabled. OTLP is bound to the Hetzner
 // Tailscale IP only; admin UI is bound by the container command to localhost.
+//
+// SECURITY NOTE: Binding to a Tailscale IP does NOT authenticate callers.
+// Any tailnet client with network reachability to 100.119.117.43 can send
+// telemetry to these ports. ACL enforcement is the responsibility of
+// Tailscale admin console ACL rules — this config alone is not sufficient
+// for multi-tenant or untrusted-client deployments.
 
 logging {
   level  = "info"

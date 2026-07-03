@@ -5,7 +5,7 @@ import logicFunctionConfig, {
 } from './twenty-sync-audit-event.database-event.logic-function';
 
 describe('twenty sync audit event handler', () => {
-  it('registers as a catch-all database event trigger for XO filtering', () => {
+  it('subscribes to *.* because Twenty database event triggers do not support prefix wildcards (xopure*.*); parseEventName filters to xopure-prefixed entities', () => {
     expect(
       (
         logicFunctionConfig as {
@@ -57,8 +57,7 @@ describe('twenty sync audit event handler', () => {
     expect(serializedLog).not.toContain('secret-token');
     infoSpy.mockRestore();
   });
-
-  it('ignores non-XO event names without logging', async () => {
+  it('ignores non-XO event names (Twenty cannot subscribe to xopure*.*, so *.* + parseEventName is the working pattern)', async () => {
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
 
     const result = await handler({ eventName: 'custom.event', recordId: 'id-1' });

@@ -122,6 +122,16 @@ describe('XO Pure observability stack contract', () => {
       if (skipIfMissingFiles(t)) return;
       doesNotMatch(content, /0\.0\.0\.0/, 'Alloy config must not bind to 0.0.0.0');
     });
+
+    it('contains an explicit ACL or auth keyword comment near the OTLP receiver', (t) => {
+      if (skipIfMissingFiles(t)) return;
+      ok(
+        /\bACL\b/i.test(content) ||
+          /\bauth\b/i.test(content) ||
+          /\bnot\s+sufficient\b/i.test(content),
+        'Expected an ACL/auth keyword comment in alloy config near the OTLP receiver block',
+      );
+    });
   });
 
   // ── Loki ────────────────────────────────────────────────────────────────
@@ -231,6 +241,30 @@ describe('XO Pure observability stack contract', () => {
       match(sectionMatch[0], /enabled\s*=\s*false/,
         'Expected auth.anonymous enabled = false');
     });
+
+    it('root_url uses http:// protocol (no TLS termination in this stack)', (t) => {
+      if (skipIfMissingFiles(t)) return;
+      match(content, /root_url\s*=\s*http:\/\//,
+        'Expected root_url with http:// protocol — no TLS termination in this stack');
+    });
+
+    it('root_url and http_port are coherent (port in root_url matches http_port)', (t) => {
+      if (skipIfMissingFiles(t)) return;
+      const portMatch = content.match(/http_port\s*=\s*(\d+)/);
+      const urlPortMatch = content.match(/root_url\s*=\s*https?:\/\/[^:]+:(\d+)/);
+      ok(portMatch, 'Expected http_port setting in grafana.ini');
+      ok(urlPortMatch, 'Expected root_url with port number');
+      ok(
+        portMatch[1] === urlPortMatch[1],
+        `Port mismatch: http_port=${portMatch[1]} but root_url uses port=${urlPortMatch[1]}`,
+      );
+    });
+
+    it('domain is localhost (not a Tailscale hostname without documented Tailscale Serve)', (t) => {
+      if (skipIfMissingFiles(t)) return;
+      match(content, /domain\s*=\s*localhost/,
+        'Expected domain = localhost (update when Tailscale Serve is configured)');
+    });
   });
 
   // ── Grafana datasources ─────────────────────────────────────────────────
@@ -336,6 +370,48 @@ describe('XO Pure observability stack contract', () => {
       ok(
         content.includes('10001:10001') && content.includes('chown'),
         'Expected chown for 10001:10001 before Tempo container starts',
+      );
+    });
+
+    it('refuses to start Grafana when GF_SECURITY_ADMIN_PASSWORD is unset or empty', (t) => {
+      if (skipIfMissingFiles(t)) return;
+      ok(
+        /\$\{GF_SECURITY_ADMIN_PASSWORD:\?/.test(content) ||
+          content.includes('exit 1') ||
+          content.includes('die '),
+        'Expected guard that exits when GF_SECURITY_ADMIN_PASSWORD is unset or empty',
+      );
+    });
+
+    it('passes GF_SECURITY_ADMIN_PASSWORD as an env var to the Grafana container', (t) => {
+      if (skipIfMissingFiles(t)) return;
+      const grafanaRunLines = content.split('\n').filter((l) =>
+        l.includes('run_container') && l.includes('grafana'),
+      );
+      const allLines = content.split('\n');
+      const grafanaBlockStart = allLines.findIndex((l) =>
+        l.includes('run_container') && l.includes('grafana'),
+      );
+      // Collect lines from the grafana run_container call until the next run_container or blank
+      const blockLines = [];
+      for (let i = grafanaBlockStart; i < allLines.length && i < grafanaBlockStart + 20; i++) {
+        if (i > grafanaBlockStart && /^run_container\s/.test(allLines[i])) break;
+        blockLines.push(allLines[i]);
+      }
+      const block = blockLines.join('\n');
+      ok(
+        /GF_SECURITY_ADMIN_PASSWORD/.test(block),
+        'Expected GF_SECURITY_ADMIN_PASSWORD env var in the Grafana run_container block',
+      );
+    });
+
+    it('pins all container images to explicit version tags (no :latest)', (t) => {
+      if (skipIfMissingFiles(t)) return;
+      const imageRefs = content.match(/docker\.io\/\S+/g) || [];
+      const latestRefs = imageRefs.filter((ref) => /:latest$/.test(ref));
+      ok(
+        latestRefs.length === 0,
+        `Expected no :latest image tags. Found: ${latestRefs.join(', ')}`,
       );
     });
   });

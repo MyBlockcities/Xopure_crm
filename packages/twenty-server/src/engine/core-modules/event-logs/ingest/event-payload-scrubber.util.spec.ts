@@ -6,7 +6,10 @@ import {
 describe('scrubPayload', () => {
   describe('sensitive field redaction', () => {
     it('redacts top-level authorization field', () => {
-      const result = scrubPayload({ authorization: 'Bearer abc123', name: 'test' });
+      const result = scrubPayload({
+        authorization: 'Bearer abc123',
+        name: 'test',
+      });
 
       expect(result).toEqual({ authorization: '[REDACTED]', name: 'test' });
     });
@@ -86,7 +89,10 @@ describe('scrubPayload', () => {
     it('redacts sensitive fields nested two levels deep', () => {
       const payload = {
         request: {
-          headers: { authorization: 'Bearer x', contentType: 'application/json' },
+          headers: {
+            authorization: 'Bearer x',
+            contentType: 'application/json',
+          },
         },
       };
 
@@ -94,17 +100,17 @@ describe('scrubPayload', () => {
 
       expect(result).toEqual({
         request: {
-          headers: { authorization: '[REDACTED]', contentType: 'application/json' },
+          headers: {
+            authorization: '[REDACTED]',
+            contentType: 'application/json',
+          },
         },
       });
     });
 
     it('redacts sensitive fields nested inside arrays', () => {
       const payload = {
-        events: [
-          { email: 'a@b.com' },
-          { email: 'c@d.com', name: 'test' },
-        ],
+        events: [{ email: 'a@b.com' }, { email: 'c@d.com', name: 'test' }],
       };
 
       const result = scrubPayload(payload);
@@ -128,18 +134,20 @@ describe('scrubPayload', () => {
     it.each(['Authorization', 'AUTHORIZATION', 'authorization'])(
       'redacts %s (authorization-like) regardless of case',
       (key) => {
-      const result = scrubPayload({ [key]: 'Bearer x', safe: 'y' });
+        const result = scrubPayload({ [key]: 'Bearer x', safe: 'y' });
 
-      expect(result).toEqual({ [key]: '[REDACTED]', safe: 'y' });
-    });
+        expect(result).toEqual({ [key]: '[REDACTED]', safe: 'y' });
+      },
+    );
 
     it.each(['Password', 'PASSWORD', 'password'])(
       'redacts %s (credential-like) regardless of case',
       (key) => {
-      const result = scrubPayload({ [key]: 'hunter2', safe: 'y' });
+        const result = scrubPayload({ [key]: 'hunter2', safe: 'y' });
 
-      expect(result).toEqual({ [key]: '[REDACTED]', safe: 'y' });
-    });
+        expect(result).toEqual({ [key]: '[REDACTED]', safe: 'y' });
+      },
+    );
   });
 
   describe('safe fields preservation', () => {
@@ -214,9 +222,21 @@ describe('scrubPayload', () => {
     it('counts depth from root object, not array primitives', () => {
       const payload = { items: [{ email: 'a@b.com' }] };
 
-      const result = scrubPayload(payload, 2);
+      const result = scrubPayload(payload, 3);
 
       expect(result).toEqual({ items: [{ email: '[REDACTED]' }] });
+    });
+
+    it('redacts items in deeply nested arrays beyond max depth', () => {
+      const payload = {
+        level: [[[[[{ value: 'should-be-redacted' }]]]]],
+      };
+
+      const result = scrubPayload(payload, 3);
+
+      // Without fix: arrays don't consume depth, so secret survives.
+      // With fix: each array level increments depth, trapping inner content.
+      expect(JSON.stringify(result)).not.toContain('should-be');
     });
   });
 

@@ -1,5 +1,6 @@
 import { ClickHouseService } from 'src/database/clickHouse/clickHouse.service';
 import { ClickHouseEventSink } from 'src/engine/core-modules/event-logs/ingest/clickhouse-event.sink';
+import { REDACTED } from 'src/engine/core-modules/event-logs/ingest/event-payload-scrubber';
 import { type WorkspaceEventEnvelope } from 'src/engine/core-modules/event-logs/types/workspace-event-envelope.type';
 
 const makePageview = (name: string): WorkspaceEventEnvelope => ({
@@ -65,5 +66,23 @@ describe('ClickHouseEventSink', () => {
     insert.mockResolvedValue({ success: false });
 
     await expect(sink.write([makePageview('a')])).rejects.toThrow();
+  });
+
+  it('inserts scrubbed copies, not raw rows, and does not mutate originals', async () => {
+    const sensitive = makePageview('sensitive');
+    (sensitive.row as Record<string, unknown>).password = 'hunter2';
+    const originalRow = { ...sensitive.row };
+
+    await sink.write([sensitive]);
+
+    // The original should not have been mutated
+    expect(sensitive.row).toEqual(originalRow);
+
+    // ClickHouse should receive a scrubbed copy where password is [REDACTED]
+    const insertedRows = insert.mock.calls[0][1] as Record<string, unknown>[];
+    expect(insertedRows[0].password).toBe(REDACTED);
+
+    // The inserted row should not be the same reference as the original
+    expect(insertedRows[0]).not.toBe(sensitive.row);
   });
 });

@@ -5,6 +5,8 @@ import {
   mapSupabaseRecords,
   toSyncKey,
 } from './utils/map-supabase-record';
+import { computeContentHash } from './utils/compute-content-hash';
+
 
 const baseWebhook = {
   eventType: 'INSERT' as const,
@@ -118,6 +120,45 @@ describe('mapSupabaseRecord', () => {
     expect(first.record.fieldValues).not.toHaveProperty('gateway_payload');
     expect(first.record.contentHash).toBe(second.record.contentHash);
   });
+  it('includes relations in content hash so relation-only changes are not skipped', () => {
+    // Map an order -- produces non-empty relations
+    const result = mapSupabaseRecord({
+      eventType: 'INSERT',
+      sourceSchema: 'public',
+      sourceTable: 'orders',
+      record: {
+        id: 'order-1',
+        user_email: 'customer@example.test',
+        customer_id: 'customer-1',
+        subtotal_cents: 10000,
+        total_cents: 12000,
+        payment_status: 'paid',
+        fulfillment_status: 'fulfilled',
+        affiliate_chain: ['ambassador-1'],
+        currency: 'USD',
+        created_at: '2026-05-01T12:00:00.000Z',
+        updated_at: '2026-05-01T12:01:00.000Z',
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const { contentHash, targetObject, externalIdField, externalIdValue, fieldValues, relations } = result.record;
+
+    // Sanity: order produces relations
+    expect(relations.length).toBeGreaterThan(0);
+
+    // Verify the mapper's contentHash INCLUDES relations
+    const recomputedWithoutRelations = computeContentHash({ targetObject, externalIdField, externalIdValue, fieldValues });
+    const recomputedWithRelations = computeContentHash({ targetObject, externalIdField, externalIdValue, fieldValues, relations });
+
+    // Before fix: contentHash == recomputedWithoutRelations (no relations)
+    // After fix:  contentHash == recomputedWithRelations (includes relations)
+    expect(contentHash).toBe(recomputedWithRelations);
+    expect(contentHash).not.toBe(recomputedWithoutRelations);
+  });
+
 
   it('preserves order and commission money as integer cents', () => {
     const order = mapSupabaseRecord({

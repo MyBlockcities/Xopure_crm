@@ -785,6 +785,8 @@ const buildMappedRecord = (
       externalIdField: mapping.externalIdField,
       externalIdValue,
       fieldValues,
+      // Include relations so relation-only changes affect the hash.
+      relations: mapRelations(sourceTable, input.record),
     }),
   };
 };
@@ -825,6 +827,8 @@ const buildReferralRelationshipMappedRecord = (
       externalIdField: 'relationshipKey',
       externalIdValue: relationshipKey,
       fieldValues,
+      // Include relations so referral relation-only changes affect hash.
+      relations: mapReferralRelationshipRelations(input.record),
     }),
   };
 };

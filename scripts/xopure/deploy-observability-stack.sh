@@ -5,6 +5,10 @@ set -euo pipefail
 # Run on the Hetzner host as root. The stack is intentionally host-networked,
 # but every service config binds either localhost or the Hetzner Tailscale IP.
 
+# ── mandatory secrets ──────────────────────────────────────────────────────
+# Grafana requires an admin password — fail fast with a clear message.
+: "${GF_SECURITY_ADMIN_PASSWORD:?Grafana admin password must be set via GF_SECURITY_ADMIN_PASSWORD}"
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 SRC="${REPO_ROOT}/services/observability"
@@ -28,7 +32,7 @@ prepare_tempo_storage() {
   podman volume create tempo-data >/dev/null
   podman run --rm --user 0 \
     -v tempo-data:/var/tempo:Z \
-    docker.io/library/busybox:latest \
+    docker.io/library/busybox:1.36.1 \
     sh -c 'mkdir -p /var/tempo/traces /var/tempo/wal /var/tempo/generator/wal && chown -R 10001:10001 /var/tempo'
 }
 
@@ -45,14 +49,14 @@ run_container loki \
   --memory 1g \
   -v "${DEST}/loki/loki-config.yaml:/etc/loki/loki-config.yaml:Z" \
   -v loki-data:/loki:Z \
-  docker.io/grafana/loki:latest \
+  docker.io/grafana/loki:3.2.0 \
   -config.file=/etc/loki/loki-config.yaml
 
 run_container prometheus \
   --memory 1g \
   -v "${DEST}/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:Z" \
   -v prometheus-data:/prometheus:Z \
-  docker.io/prom/prometheus:latest \
+  docker.io/prom/prometheus:v2.54.1 \
   --config.file=/etc/prometheus/prometheus.yml \
   --storage.tsdb.path=/prometheus \
   --web.enable-remote-write-receiver \
@@ -62,14 +66,14 @@ run_container tempo \
   --memory 1g \
   -v "${DEST}/tempo/tempo-config.yaml:/etc/tempo/tempo-config.yaml:Z" \
   -v tempo-data:/var/tempo:Z \
-  docker.io/grafana/tempo:latest \
+  docker.io/grafana/tempo:2.6.1 \
   -config.file=/etc/tempo/tempo-config.yaml
 
 run_container alloy \
   --memory 512m \
   -v "${DEST}/alloy/config.alloy:/etc/alloy/config.alloy:Z" \
   -v alloy-data:/var/lib/alloy:Z \
-  docker.io/grafana/alloy:latest \
+  docker.io/grafana/alloy:v1.4.0 \
   run \
   --server.http.listen-addr=127.0.0.1:12345 \
   --storage.path=/var/lib/alloy \
@@ -80,9 +84,10 @@ run_container grafana \
   -v "${DEST}/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:Z" \
   -v "${DEST}/grafana/grafana.ini:/etc/grafana/grafana.ini:Z" \
   -v grafana-data:/var/lib/grafana:Z \
+  -e GF_SECURITY_ADMIN_PASSWORD="${GF_SECURITY_ADMIN_PASSWORD}" \
   -e GF_SERVER_HTTP_ADDR=127.0.0.1 \
   -e GF_SERVER_HTTP_PORT=3333 \
   -e GF_AUTH_ANONYMOUS_ENABLED=false \
-  docker.io/grafana/grafana:latest
+  docker.io/grafana/grafana:11.4.0
 
 podman ps --filter name=alloy --filter name=loki --filter name=prometheus --filter name=tempo --filter name=grafana

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   client: {
     mutation: vi.fn(),
+    query: vi.fn(),
   },
   CoreApiClient: vi.fn(),
   defineLogicFunction: vi.fn((config: unknown) => config),
@@ -21,8 +22,11 @@ import { handler } from './support-ticket-task-creator.database-event.logic-func
 describe('support-ticket-task-creator stress tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.CoreApiClient.mockReturnValue(mocks.client);
+    mocks.CoreApiClient.mockImplementation(function () {
+      return mocks.client;
+    });
     process.env.MULTICA_API_KEY = 'pat-stress';
+    mocks.client.query.mockResolvedValue({ taskTargets: { edges: [] } });
   });
 
   it('handles 50 concurrent ticket creations without race conditions', async () => {
@@ -47,7 +51,7 @@ describe('support-ticket-task-creator stress tests', () => {
       vi.fn(async () => ({
         ok: true,
         json: async () => ({ id: `multica-issue-${++issueCounter}` }),
-        text: async () => '',
+        text: async (): Promise<string> => '',
       })),
     );
 
@@ -101,7 +105,7 @@ describe('support-ticket-task-creator stress tests', () => {
       vi.fn(async () => ({
         ok: true,
         json: async () => ({ id: `multica-${++counter}` }),
-        text: async () => '',
+        text: async (): Promise<string> => '',
       })),
     );
 
@@ -155,9 +159,18 @@ describe('support-ticket-task-creator stress tests', () => {
       vi.fn(async () => {
         counter++;
         if (counter % 3 === 0) {
-          return { ok: false, status: 503, json: async () => ({}), text: async () => 'Unavailable' };
+          return {
+            ok: false,
+            status: 503,
+            json: async () => ({}),
+            text: async (): Promise<string> => 'Unavailable',
+          };
         }
-        return { ok: true, json: async () => ({ id: `multica-${counter}` }), text: async () => '' };
+        return {
+          ok: true,
+          json: async () => ({ id: `multica-${counter}` }),
+          text: async (): Promise<string> => '',
+        };
       }),
     );
 
