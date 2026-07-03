@@ -20,6 +20,7 @@ import { opsCommandCenterBlueprint } from '../blueprints/ops-command-center.blue
 import { ordersDashboardBlueprint } from '../blueprints/orders-dashboard.blueprint';
 import { paymentsDashboardBlueprint } from '../blueprints/payments-dashboard.blueprint';
 import { riskExceptionsDashboardBlueprint } from '../blueprints/risk-exceptions-dashboard.blueprint';
+import { telemetryLoggingDashboardBlueprint } from '../blueprints/telemetry-logging-dashboard.blueprint';
 
 type ApplyDashboardBlueprintDbCliArgs = {
   blueprint: string;
@@ -168,6 +169,7 @@ const dashboardBlueprints: Record<string, DashboardBlueprint> = {
   'risk-exceptions-dashboard': riskExceptionsDashboardBlueprint,
   'comp-integrity-dashboard': compIntegrityDashboardBlueprint,
   'support-dashboard': supportDashboardBlueprint,
+  'telemetry-logging-dashboard': telemetryLoggingDashboardBlueprint,
 };
 
 const quoteIdentifier = (identifier: string): string => {

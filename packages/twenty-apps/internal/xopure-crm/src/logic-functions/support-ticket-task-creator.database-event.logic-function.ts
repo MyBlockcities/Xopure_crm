@@ -56,6 +56,21 @@ type Output = {
   processedAt: string;
 };
 
+type JobLifecycleEvent = {
+  stage: 'JOB_COMPLETE' | 'JOB_FAIL' | 'JOB_START';
+  jobType: 'support-ticket-task-creator';
+  supportTicketId?: string;
+  taskId?: string;
+  errorCode?: string;
+  durationMs: number;
+  recordsProcessed: number;
+  recordsFailed: number;
+};
+
+const emitJobLifecycleEvent = (event: JobLifecycleEvent): void => {
+  console.info('xopure_job_lifecycle', event);
+};
+
 /**
  * Extract a string `id` from a CoreApiClient mutation result.
  * Uses `in` narrowing — no unchecked casts on external data.
@@ -151,124 +166,155 @@ function buildMetadata(
 }
 
 export const handler = async (input: Input): Promise<Output> => {
+  const startedAt = Date.now();
   const client = new CoreApiClient();
   const supportTicketId = input.record?.id;
   const subject = input.record?.subject ?? 'New ticket';
   const dueAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
 
-  // --- Step 1: Create the Twenty Task ---
-  const taskResult = await client.mutation({
-    createTask: {
-      __args: {
-        data: {
-          body: `Follow up on support ticket: ${subject}`,
-          dueAt,
-        },
-      },
-      id: true,
-    },
+  emitJobLifecycleEvent({
+    stage: 'JOB_START',
+    jobType: 'support-ticket-task-creator',
+    supportTicketId,
+    durationMs: 0,
+    recordsProcessed: 0,
+    recordsFailed: 0,
   });
 
-  const taskId = extractId(taskResult, 'createTask');
-
-  if (taskId && supportTicketId) {
-    await client.mutation({
-      createTaskTarget: {
+  try {
+    const taskResult = await client.mutation({
+      createTask: {
         __args: {
           data: {
-            taskId,
-            targetXopureSupportTicketId: supportTicketId,
+            body: `Follow up on support ticket: ${subject}`,
+            dueAt,
           },
         },
         id: true,
       },
     });
-  }
 
-  // --- Step 2: Create the Multica Issue (idempotent — skip if already linked) ---
-  let multicaIssueId: string | undefined;
-  let multicaError: string | undefined;
+    const taskId = extractId(taskResult, 'createTask');
 
-  if (input.record?.multicaIssueId) {
-    multicaIssueId = input.record.multicaIssueId;
-  } else {
-    const apiKey = process.env.MULTICA_API_KEY;
-
-    if (!apiKey) {
-      multicaError =
-        'Missing MULTICA_API_KEY — task created, Multica sync skipped.';
-    } else {
-      try {
-        const multicaStatus = input.record?.status
-          ? (STATUS_TO_MULTICA[input.record.status] ?? 'todo')
-          : 'todo';
-        const multicaPriority = input.record?.priority
-          ? (PRIORITY_TO_MULTICA[input.record.priority] ?? 'medium')
-          : 'medium';
-
-        const response = await fetch(
-          `${MULTICA_API_URL}?workspace_id=${MULTICA_WORKSPACE_ID}`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
+    if (taskId && supportTicketId) {
+      await client.mutation({
+        createTaskTarget: {
+          __args: {
+            data: {
+              taskId,
+              targetXopureSupportTicketId: supportTicketId,
             },
-            body: JSON.stringify({
-              title: subject,
-              description: buildDescription(input.record ?? {}),
-              priority: multicaPriority,
-              status: multicaStatus,
-              project_id: MULTICA_PROJECT_ID,
-              metadata: buildMetadata(input.record ?? {}, taskId),
-            }),
           },
-        );
+          id: true,
+        },
+      });
+    }
 
-        if (!response.ok) {
-          const errorBody = await response.text().catch(() => 'Unknown error');
-          multicaError = `Multica API returned ${response.status}: ${errorBody}`;
-        } else {
-          const issue = await response.json();
-          if (
-            typeof issue === 'object' &&
-            issue !== null &&
-            'id' in issue &&
-            typeof issue.id === 'string'
-          ) {
-            multicaIssueId = issue.id;
+    let multicaIssueId: string | undefined;
+    let multicaError: string | undefined;
 
-            // Write back multicaIssueId to the support ticket record
-            if (supportTicketId) {
-              await client.mutation({
-                updateXopureSupportTicket: {
-                  __args: {
-                    id: supportTicketId,
-                    data: { multicaIssueId },
-                  },
-                  id: true,
-                },
-              });
-            }
-          } else {
-            multicaError = 'Multica API returned no issue id.';
-          }
-        }
-      } catch (err) {
+    if (input.record?.multicaIssueId) {
+      multicaIssueId = input.record.multicaIssueId;
+    } else {
+      const apiKey = process.env.MULTICA_API_KEY;
+
+      if (!apiKey) {
         multicaError =
-          err instanceof Error ? err.message : 'Unknown network error';
+          'Missing MULTICA_API_KEY — task created, Multica sync skipped.';
+      } else {
+        try {
+          const multicaStatus = input.record?.status
+            ? (STATUS_TO_MULTICA[input.record.status] ?? 'todo')
+            : 'todo';
+          const multicaPriority = input.record?.priority
+            ? (PRIORITY_TO_MULTICA[input.record.priority] ?? 'medium')
+            : 'medium';
+
+          const response = await fetch(
+            `${MULTICA_API_URL}?workspace_id=${MULTICA_WORKSPACE_ID}`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                title: subject,
+                description: buildDescription(input.record ?? {}),
+                priority: multicaPriority,
+                status: multicaStatus,
+                project_id: MULTICA_PROJECT_ID,
+                metadata: buildMetadata(input.record ?? {}, taskId),
+              }),
+            },
+          );
+
+          if (!response.ok) {
+            const errorBody = await response.text().catch(() => 'Unknown error');
+            multicaError = `Multica API returned ${response.status}: ${errorBody}`;
+          } else {
+            const issue = await response.json();
+            if (
+              typeof issue === 'object' &&
+              issue !== null &&
+              'id' in issue &&
+              typeof issue.id === 'string'
+            ) {
+              multicaIssueId = issue.id;
+
+              if (supportTicketId) {
+                await client.mutation({
+                  updateXopureSupportTicket: {
+                    __args: {
+                      id: supportTicketId,
+                      data: { multicaIssueId },
+                    },
+                    id: true,
+                  },
+                });
+              }
+            } else {
+              multicaError = 'Multica API returned no issue id.';
+            }
+          }
+        } catch (err) {
+          multicaError =
+            err instanceof Error ? err.message : 'Unknown network error';
+        }
       }
     }
-  }
 
-  return {
-    success: true,
-    taskId,
-    supportTicketId,
-    multicaIssueId,
-    multicaError,
-    processedAt: new Date().toISOString(),
-  };
+    emitJobLifecycleEvent({
+      stage: 'JOB_COMPLETE',
+      jobType: 'support-ticket-task-creator',
+      supportTicketId,
+      taskId,
+      durationMs: Date.now() - startedAt,
+      recordsProcessed: 1,
+      recordsFailed: multicaError ? 1 : 0,
+    });
+
+    return {
+      success: true,
+      taskId,
+      supportTicketId,
+      multicaIssueId,
+      multicaError,
+      processedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    emitJobLifecycleEvent({
+      stage: 'JOB_FAIL',
+      jobType: 'support-ticket-task-creator',
+      supportTicketId,
+      errorCode: 'UNHANDLED_ERROR',
+      durationMs: Date.now() - startedAt,
+      recordsProcessed: 0,
+      recordsFailed: 1,
+    });
+
+    throw error;
+  }
 };
 
 export default defineLogicFunction({

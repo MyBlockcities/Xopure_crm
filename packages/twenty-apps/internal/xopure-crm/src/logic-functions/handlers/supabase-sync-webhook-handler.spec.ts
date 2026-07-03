@@ -243,6 +243,7 @@ describe('handleSupabaseSyncWebhook', () => {
   });
 
   it('performs an idempotent create through the shared mapper and upsert path', async () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
     const client = buildClient({
       queryResults: [
         { xopureSyncMaps: { edges: [] } },
@@ -290,7 +291,23 @@ describe('handleSupabaseSyncWebhook', () => {
         twentyRecordId: 'twenty-product-1',
       },
     });
+    expect(infoSpy).toHaveBeenCalledWith(
+      'xopure_sync_transaction',
+      expect.objectContaining({
+        action: 'created',
+        durationMs: expect.any(Number),
+        hashStatus: 'changed',
+        result: 'success',
+        sourceRecordId: 'product-1',
+        sourceTable: 'products',
+        syncId: 'supabase.public.products.product-1',
+        targetObject: 'xopureProduct',
+        targetRecordId: 'twenty-product-1',
+      }),
+    );
+    expect(JSON.stringify(infoSpy.mock.calls)).not.toContain('Peptide Serum');
     expect(JSON.stringify(result)).not.toContain('nextStep');
+    infoSpy.mockRestore();
   });
 
   it('fans out orders webhooks with payment fields into order and payment creates', async () => {

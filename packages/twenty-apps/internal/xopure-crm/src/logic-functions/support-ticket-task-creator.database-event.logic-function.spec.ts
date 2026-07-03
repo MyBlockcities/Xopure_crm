@@ -18,10 +18,25 @@ vi.mock('twenty-sdk/define', () => ({
 
 import { handler } from './support-ticket-task-creator.database-event.logic-function';
 
+const stubMulticaSuccess = () => {
+  const fetchMock = vi.fn(async () => ({
+    ok: true,
+    json: async () => ({ id: 'multica-issue-1', identifier: 'X0-99' }),
+    text: async () => '',
+  }));
+
+  vi.stubGlobal('fetch', fetchMock);
+
+  return fetchMock;
+};
+
 describe('support ticket task creator handler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.CoreApiClient.mockReturnValue(mocks.client);
+    vi.unstubAllGlobals();
+    mocks.CoreApiClient.mockImplementation(function () {
+      return mocks.client;
+    });
     process.env.MULTICA_API_KEY = 'pat-test';
   });
 
@@ -30,13 +45,7 @@ describe('support ticket task creator handler', () => {
       .mockResolvedValueOnce({ createTask: { id: 'task-1' } })
       .mockResolvedValueOnce({ createTaskTarget: { id: 'task-target-1' } })
       .mockResolvedValueOnce({ updateXopureSupportTicket: { id: 'ticket-1' } });
-
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ id: 'multica-issue-1', identifier: 'X0-99' }),
-      text: async () => '',
-    })) as unknown as typeof fetch;
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubMulticaSuccess();
 
     const result = await handler({
       record: {
@@ -55,8 +64,6 @@ describe('support ticket task creator handler', () => {
       multicaIssueId: 'multica-issue-1',
     });
     expect(result.multicaError).toBeUndefined();
-
-    // 3 mutations: createTask, createTaskTarget, updateXopureSupportTicket
     expect(mocks.client.mutation).toHaveBeenCalledTimes(3);
     expect(mocks.client.mutation).toHaveBeenNthCalledWith(3, {
       updateXopureSupportTicket: {
@@ -67,8 +74,6 @@ describe('support ticket task creator handler', () => {
         id: true,
       },
     });
-
-    // Multica API called with correct workspace + project
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('workspace_id=d11337e4-0c4e-43b8-8fc8-8216c70f1427'),
       expect.objectContaining({
@@ -82,6 +87,7 @@ describe('support ticket task creator handler', () => {
     const callBody = JSON.parse(
       (fetchMock.mock.calls[0]?.[1] as RequestInit)?.body as string,
     );
+
     expect(callBody).toMatchObject({
       title: 'Broken shipment',
       priority: 'high',
@@ -90,11 +96,10 @@ describe('support ticket task creator handler', () => {
     });
   });
 
-  it('skips Multica sync when multicaIssueId is already set (idempotent)', async () => {
+  it('skips Multica sync when multicaIssueId is already set', async () => {
     mocks.client.mutation
       .mockResolvedValueOnce({ createTask: { id: 'task-2' } })
       .mockResolvedValueOnce({ createTaskTarget: { id: 'task-target-2' } });
-
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
@@ -113,7 +118,6 @@ describe('support ticket task creator handler', () => {
     });
     expect(result.multicaError).toBeUndefined();
     expect(fetchMock).not.toHaveBeenCalled();
-    // Only 2 mutations — no updateXopureSupportTicket write-back
     expect(mocks.client.mutation).toHaveBeenCalledTimes(2);
   });
 
@@ -121,7 +125,6 @@ describe('support ticket task creator handler', () => {
     mocks.client.mutation
       .mockResolvedValueOnce({ createTask: { id: 'task-3' } })
       .mockResolvedValueOnce({ createTaskTarget: { id: 'task-target-3' } });
-
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({
@@ -129,7 +132,7 @@ describe('support ticket task creator handler', () => {
         status: 503,
         json: async () => ({}),
         text: async () => 'Service unavailable',
-      })) as unknown as typeof fetch,
+      })),
     );
 
     const result = await handler({
@@ -153,15 +156,7 @@ describe('support ticket task creator handler', () => {
       .mockResolvedValueOnce({ createTask: { id: 'task-1' } })
       .mockResolvedValueOnce({ createTaskTarget: { id: 'task-target-1' } })
       .mockResolvedValueOnce({ updateXopureSupportTicket: { id: 'ticket-1' } });
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({ id: 'multica-issue-1' }),
-        text: async () => '',
-      })) as unknown as typeof fetch,
-    );
+    stubMulticaSuccess();
 
     const result = await handler({
       record: {
@@ -186,5 +181,75 @@ describe('support ticket task creator handler', () => {
         id: true,
       },
     });
+  });
+
+  it('emits JOB_START and JOB_COMPLETE lifecycle events without ticket subject', async () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    mocks.client.mutation
+      .mockResolvedValueOnce({ createTask: { id: 'task-1' } })
+      .mockResolvedValueOnce({ createTaskTarget: { id: 'task-target-1' } })
+      .mockResolvedValueOnce({ updateXopureSupportTicket: { id: 'ticket-1' } });
+    stubMulticaSuccess();
+
+    const result = await handler({
+      record: {
+        id: 'ticket-1',
+        subject: 'Broken shipment',
+      },
+    });
+
+    expect(result.taskId).toBe('task-1');
+    expect(infoSpy).toHaveBeenCalledWith(
+      'xopure_job_lifecycle',
+      expect.objectContaining({
+        stage: 'JOB_START',
+        jobType: 'support-ticket-task-creator',
+        supportTicketId: 'ticket-1',
+        recordsProcessed: 0,
+        recordsFailed: 0,
+      }),
+    );
+    expect(infoSpy).toHaveBeenCalledWith(
+      'xopure_job_lifecycle',
+      expect.objectContaining({
+        stage: 'JOB_COMPLETE',
+        jobType: 'support-ticket-task-creator',
+        supportTicketId: 'ticket-1',
+        taskId: 'task-1',
+        durationMs: expect.any(Number),
+        recordsProcessed: 1,
+        recordsFailed: 0,
+      }),
+    );
+    expect(JSON.stringify(infoSpy.mock.calls)).not.toContain('Broken shipment');
+    infoSpy.mockRestore();
+  });
+
+  it('emits JOB_FAIL lifecycle event without leaking subject when creation fails', async () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    mocks.client.mutation.mockRejectedValueOnce(new Error('database unavailable'));
+
+    await expect(
+      handler({
+        record: {
+          id: 'ticket-1',
+          subject: 'Broken shipment',
+        },
+      }),
+    ).rejects.toThrow('database unavailable');
+
+    expect(infoSpy).toHaveBeenCalledWith(
+      'xopure_job_lifecycle',
+      expect.objectContaining({
+        stage: 'JOB_FAIL',
+        jobType: 'support-ticket-task-creator',
+        supportTicketId: 'ticket-1',
+        errorCode: 'UNHANDLED_ERROR',
+        recordsProcessed: 0,
+        recordsFailed: 1,
+      }),
+    );
+    expect(JSON.stringify(infoSpy.mock.calls)).not.toContain('Broken shipment');
+    infoSpy.mockRestore();
   });
 });

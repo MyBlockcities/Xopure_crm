@@ -39,6 +39,20 @@ type MappingPayload = {
   record: Record<string, unknown>;
 };
 
+type SyncTransactionLog = {
+  syncId?: string;
+  sourceTable?: string;
+  sourceRecordId?: string;
+  targetObject?: string;
+  targetRecordId?: string | null;
+  action: string;
+  hashStatus: 'changed' | 'deleted' | 'missing_sync_map' | 'unchanged' | 'unknown';
+  result: 'failed' | 'success';
+  retryable?: boolean;
+  errorCode?: string;
+  durationMs: number;
+};
+
 const ORDER_PAYMENT_FIELDS = [
   'payment_gateway',
   'payment_status',
@@ -124,6 +138,26 @@ const buildPaymentRecordFromOrder = (
     : {}),
 });
 
+const getHashStatus = (
+  action: UpsertResult['action'],
+): SyncTransactionLog['hashStatus'] => {
+  if (action === 'skipped') {
+    return 'unchanged';
+  }
+
+  if (action === 'created' || action === 'updated') {
+    return 'changed';
+  }
+
+  return 'unknown';
+};
+
+const emitSyncTransactionLog = (event: SyncTransactionLog): void => {
+  const logMethod = event.result === 'failed' ? console.warn : console.info;
+
+  logMethod('xopure_sync_transaction', event);
+};
+
 const expandWebhookMappingInputs = (
   payload: MappingPayload,
 ): MappingInput[] => {
@@ -151,25 +185,11 @@ const expandWebhookMappingInputs = (
 export const handleSupabaseSyncWebhook = async (
   input: HandlerInput,
 ): Promise<HandlerResponse> => {
+  const startedAt = Date.now();
   const expectedSecret = input.expectedSecret;
   const providedSecret = getHeader(input.event.headers, 'x-xopure-sync-secret');
 
   if (!expectedSecret || (typeof expectedSecret === 'string' && expectedSecret.trim() === '')) {
-    return {
-      statusCode: 500,
-      body: {
-        ok: false,
-        error: {
-          code: 'SYNC_SECRET_NOT_CONFIGURED',
-          message:
-            'Sync secret is not configured. Refusing to process request.',
-          retryable: true,
-        },
-      },
-    };
-  }
-
-  if (!expectedSecret) {
     return syncSecretNotConfiguredResponse();
   }
 
@@ -246,10 +266,19 @@ export const handleSupabaseSyncWebhook = async (
       );
 
       if (!existingSyncMap) {
+        emitSyncTransactionLog({
+          syncId: mappedRecord.syncKey,
+          sourceTable: mappedRecord.sourceTable,
+          sourceRecordId: mappedRecord.sourceRecordId,
+          targetObject: mappedRecord.targetObject,
+          action: 'skipped',
+          hashStatus: 'missing_sync_map',
+          result: 'success',
+          retryable: false,
+          durationMs: Date.now() - startedAt,
+        });
         continue;
       }
-
-
 
       await updateExistingSyncMap({
         client: input.client,
@@ -260,6 +289,19 @@ export const handleSupabaseSyncWebhook = async (
       });
 
       tombstoned += 1;
+
+      emitSyncTransactionLog({
+        syncId: mappedRecord.syncKey,
+        sourceTable: mappedRecord.sourceTable,
+        sourceRecordId: mappedRecord.sourceRecordId,
+        targetObject: mappedRecord.targetObject,
+        targetRecordId: existingSyncMap.targetRecordId,
+        action: 'deleted',
+        hashStatus: 'deleted',
+        result: 'success',
+        retryable: false,
+        durationMs: Date.now() - startedAt,
+      });
 
       console.info('xopure_supabase_sync_row_tombstoned', {
         sourceTable: mappedRecord.sourceTable,
@@ -347,6 +389,22 @@ export const handleSupabaseSyncWebhook = async (
   );
 
   if (failedUpsertResult) {
+    const failedIndex = upsertResults.indexOf(failedUpsertResult);
+    const failedRecord = mappedRecords[failedIndex];
+
+    emitSyncTransactionLog({
+      syncId: failedRecord?.syncKey,
+      sourceTable: failedRecord?.sourceTable ?? payload.table,
+      sourceRecordId: failedRecord?.sourceRecordId ?? sourceRecordId,
+      targetObject: failedUpsertResult.targetObject,
+      action: failedUpsertResult.action,
+      hashStatus: 'unknown',
+      result: 'failed',
+      retryable: failedUpsertResult.retryable,
+      errorCode: failedUpsertResult.errorCode,
+      durationMs: Date.now() - startedAt,
+    });
+
     console.warn('xopure_supabase_sync_row_failed', {
       sourceTable: payload.table,
       sourceRecordId,
@@ -385,6 +443,19 @@ export const handleSupabaseSyncWebhook = async (
 
   for (const [index, upsertResult] of upsertResults.entries()) {
     const mappedRecord = mappedRecords[index];
+
+    emitSyncTransactionLog({
+      syncId: mappedRecord?.syncKey,
+      sourceTable: mappedRecord?.sourceTable,
+      sourceRecordId: mappedRecord?.sourceRecordId,
+      targetObject: upsertResult.targetObject,
+      targetRecordId: upsertResult.twentyRecordId,
+      action: upsertResult.action,
+      hashStatus: getHashStatus(upsertResult.action),
+      result: 'success',
+      retryable: false,
+      durationMs: Date.now() - startedAt,
+    });
 
     console.info('xopure_supabase_sync_row_processed', {
       sourceTable: mappedRecord?.sourceTable,

@@ -17,6 +17,7 @@ import { fulfillmentDashboardBlueprint } from '../blueprints/fulfillment-dashboa
 import { riskExceptionsDashboardBlueprint } from '../blueprints/risk-exceptions-dashboard.blueprint';
 import { compIntegrityDashboardBlueprint } from '../blueprints/comp-integrity-dashboard.blueprint';
 import { supportDashboardBlueprint } from '../blueprints/support-dashboard.blueprint';
+import { telemetryLoggingDashboardBlueprint } from '../blueprints/telemetry-logging-dashboard.blueprint';
 
 type ApplyDashboardBlueprintCliArgs = {
   dashboardId?: string;
@@ -207,6 +208,7 @@ const dashboardBlueprints: Record<string, DashboardBlueprint> = {
   'risk-exceptions-dashboard': riskExceptionsDashboardBlueprint,
   'comp-integrity-dashboard': compIntegrityDashboardBlueprint,
   'support-dashboard': supportDashboardBlueprint,
+  'telemetry-logging-dashboard': telemetryLoggingDashboardBlueprint,
 };
 
 const resolveApiConfig = async (
