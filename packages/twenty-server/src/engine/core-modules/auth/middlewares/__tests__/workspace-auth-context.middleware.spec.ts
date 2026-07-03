@@ -1,4 +1,26 @@
-import { type NextFunction, type Request, type Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
+import { Logger } from '@nestjs/common';
+
+jest.mock('@opentelemetry/api', () => ({
+  trace: {
+    getActiveSpan: jest.fn(() => ({
+      spanContext: () => ({ traceId: 'trace-id' }),
+    })),
+  },
+}));
+
+jest.mock('twenty-shared/utils', () => ({
+  assertUnreachable: jest.fn(),
+  CustomError: class CustomError extends Error {},
+  isDefined: (value: unknown) => value !== null && value !== undefined,
+}));
+
+jest.mock(
+  'src/engine/core-modules/sentry/utils/apply-workspace-sentry-context.util',
+  () => ({
+    applyWorkspaceSentryContext: jest.fn(),
+  }),
+);
 
 import {
   AuthException,
@@ -221,5 +243,208 @@ describe('WorkspaceAuthContextMiddleware', () => {
     expect(capturedContext).toEqual(
       expect.objectContaining({ type: 'apiKey' }),
     );
+  });
+
+  it('should store inbound x-request-id on auth context and echo it via setHeader', () => {
+    const inboundRequestId = 'inbound-req-456';
+    const req = buildRequest({
+      application: mockApplication,
+      headers: { 'x-request-id': inboundRequestId },
+    });
+    const setHeader = jest.fn();
+    let finishCallback: (() => void) | undefined;
+    const responseWithSpies = {
+      setHeader,
+      on: jest
+        .fn()
+        .mockImplementation(
+          (_event: string, cb: () => void) => (finishCallback = cb),
+        ),
+      statusCode: 200,
+    } as unknown as Response;
+    let capturedContext: unknown;
+
+    (mockNext as jest.Mock).mockImplementation(() => {
+      capturedContext = workspaceAuthContextStorage.getStore();
+    });
+
+    middleware.use(req, responseWithSpies, mockNext);
+
+    expect(setHeader).toHaveBeenCalledWith('x-request-id', inboundRequestId);
+    expect(capturedContext).toEqual(
+      expect.objectContaining({ requestId: inboundRequestId }),
+    );
+  });
+
+  it('should generate a request ID when no inbound x-request-id header is present', () => {
+    const req = buildRequest({ application: mockApplication });
+    const setHeader = jest.fn();
+    let capturedContext: unknown;
+    const responseWithSpies = {
+      setHeader,
+      on: jest.fn(),
+      statusCode: 200,
+    } as unknown as Response;
+
+    (mockNext as jest.Mock).mockImplementation(() => {
+      capturedContext = workspaceAuthContextStorage.getStore();
+    });
+
+    middleware.use(req, responseWithSpies, mockNext);
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    expect(setHeader).toHaveBeenCalledWith(
+      'x-request-id',
+      expect.stringMatching(uuidRegex),
+    );
+    const calledWith = setHeader.mock.calls[0][1];
+    expect(capturedContext).toEqual(
+      expect.objectContaining({ requestId: calledWith }),
+    );
+  });
+
+  it('should log JSON with requestId, workspaceId, method, sanitized path, statusCode, and durationMs on finish', () => {
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => {});
+    const inboundRequestId = 'log-test-req-id';
+    const req = buildRequest({
+      application: mockApplication,
+      headers: { 'x-request-id': inboundRequestId },
+      method: 'POST',
+      originalUrl: '/graphql',
+    });
+    let finishCallback: (() => void) | undefined;
+    const responseWithSpies = {
+      setHeader: jest.fn(),
+      on: jest
+        .fn()
+        .mockImplementation(
+          (_event: string, cb: () => void) => (finishCallback = cb),
+        ),
+      statusCode: 200,
+    } as unknown as Response;
+
+    middleware.use(req, responseWithSpies, mockNext);
+
+    expect(finishCallback).toBeDefined();
+    finishCallback?.();
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    const logArg = logSpy.mock.calls[0][0];
+    const parsed = JSON.parse(logArg as string);
+
+    expect(parsed).toMatchObject({
+      type: 'workspace_access',
+      requestId: inboundRequestId,
+      workspaceId: 'workspace-id',
+      method: 'POST',
+      path: '/graphql',
+      statusCode: 200,
+    });
+    expect(typeof parsed.durationMs).toBe('number');
+
+    logSpy.mockRestore();
+  });
+
+  it('should include userWorkspaceId and workspaceMemberId in user auth log', () => {
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => {});
+    const req = buildRequest({
+      user: mockUser,
+      userWorkspaceId: 'user-workspace-id',
+      workspaceMemberId: 'workspace-member-id',
+      workspaceMember: mockWorkspaceMember,
+    });
+    let finishCallback: (() => void) | undefined;
+    const responseWithSpies = {
+      setHeader: jest.fn(),
+      on: jest
+        .fn()
+        .mockImplementation(
+          (_event: string, cb: () => void) => (finishCallback = cb),
+        ),
+      statusCode: 201,
+    } as unknown as Response;
+
+    middleware.use(req, responseWithSpies, mockNext);
+
+    expect(finishCallback).toBeDefined();
+    finishCallback?.();
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    const parsed = JSON.parse(logSpy.mock.calls[0][0] as string);
+
+    expect(parsed).toMatchObject({
+      authType: 'user',
+      userWorkspaceId: 'user-workspace-id',
+      workspaceMemberId: 'workspace-member-id',
+    });
+
+    logSpy.mockRestore();
+  });
+
+  it('should exclude authorization, cookie, raw body fields, and raw query values from log', () => {
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => {});
+    const req = buildRequest({
+      application: mockApplication,
+      headers: {
+        'x-request-id': 'test-req',
+        authorization: 'Bearer secret-token-123',
+        cookie: 'session=abc123',
+      },
+      method: 'POST',
+      originalUrl: '/graphql?secretKey=leaked&password=12345',
+      body: { password: 'should-not-appear', operationName: 'TestOp' },
+    });
+    let finishCallback: (() => void) | undefined;
+    const responseWithSpies = {
+      setHeader: jest.fn(),
+      on: jest
+        .fn()
+        .mockImplementation(
+          (_event: string, cb: () => void) => (finishCallback = cb),
+        ),
+      statusCode: 200,
+    } as unknown as Response;
+
+    middleware.use(req, responseWithSpies, mockNext);
+
+    expect(finishCallback).toBeDefined();
+    finishCallback?.();
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    const logArg = logSpy.mock.calls[0][0] as string;
+    const logKeys = Object.keys(JSON.parse(logArg));
+
+    expect(logKeys).not.toContain('authorization');
+    expect(logKeys).not.toContain('cookie');
+    expect(logKeys).not.toContain('password');
+    expect(logArg).not.toContain('leaked');
+    expect(logArg).not.toContain('secretKey');
+    expect(logArg).not.toContain('secret-token-123');
+    expect(logArg).not.toContain('session=abc123');
+    expect(JSON.parse(logArg).graphqlOperationName).toBe('TestOp');
+
+    logSpy.mockRestore();
+  });
+
+  it('should not set header or register finish listener when workspace is not defined', () => {
+    const req = buildRequest({ workspace: undefined });
+    const setHeader = jest.fn();
+    const on = jest.fn();
+    const responseWithSpies = {
+      setHeader,
+      on,
+    } as unknown as Response;
+
+    middleware.use(req, responseWithSpies, mockNext);
+
+    expect(mockNext).toHaveBeenCalled();
+    expect(setHeader).not.toHaveBeenCalled();
+    expect(on).not.toHaveBeenCalled();
   });
 });

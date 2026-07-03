@@ -1,4 +1,7 @@
-import { Injectable, type NestMiddleware } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+
+import { Injectable, Logger, type NestMiddleware } from '@nestjs/common';
+import { trace } from '@opentelemetry/api';
 
 import { type NextFunction, type Request, type Response } from 'express';
 import { isDefined } from 'twenty-shared/utils';
@@ -17,7 +20,9 @@ import { applyWorkspaceSentryContext } from 'src/engine/core-modules/sentry/util
 
 @Injectable()
 export class WorkspaceAuthContextMiddleware implements NestMiddleware {
-  use(req: Request, _res: Response, next: NextFunction) {
+  private readonly accessLogger = new Logger('WorkspaceAccessLog');
+
+  use(req: Request, res: Response, next: NextFunction) {
     if (!isDefined(req.workspace)) {
       next();
 
@@ -25,6 +30,17 @@ export class WorkspaceAuthContextMiddleware implements NestMiddleware {
     }
 
     const authContext = this.buildAuthContext(req);
+    const requestId = this.getOrCreateRequestId(req);
+    const traceId = trace.getActiveSpan()?.spanContext().traceId;
+    const startedAt = process.hrtime.bigint();
+
+    authContext.requestId = requestId;
+    authContext.traceId = traceId;
+
+    res.setHeader?.('x-request-id', requestId);
+    res.on?.('finish', () => {
+      this.logAccess(req, res, authContext, startedAt);
+    });
 
     applyWorkspaceSentryContext(authContext);
 
@@ -75,5 +91,102 @@ export class WorkspaceAuthContextMiddleware implements NestMiddleware {
       'No authentication context found',
       AuthExceptionCode.UNAUTHENTICATED,
     );
+  }
+
+  private getOrCreateRequestId(req: Request): string {
+    return (
+      this.getHeader(req, 'x-request-id') ??
+      this.getHeader(req, 'x-correlation-id') ??
+      randomUUID()
+    );
+  }
+
+  private getHeader(req: Request, name: string): string | undefined {
+    const value =
+      req.header?.(name) ??
+      req.get?.(name) ??
+      req.headers?.[name.toLowerCase()];
+
+    if (Array.isArray(value)) {
+      return value[0];
+    }
+
+    return typeof value === 'string' && value.length > 0 ? value : undefined;
+  }
+
+  private logAccess(
+    req: Request,
+    res: Response,
+    authContext: WorkspaceAuthContext,
+    startedAt: bigint,
+  ): void {
+    this.accessLogger.log(
+      JSON.stringify({
+        type: 'workspace_access',
+        requestId: authContext.requestId,
+        traceId: authContext.traceId,
+        authType: authContext.type,
+        workspaceId: authContext.workspace.id,
+        ...this.getActorFields(authContext),
+        method: req.method,
+        path: this.getSanitizedPath(req),
+        graphqlOperationName: this.getGraphqlOperationName(req),
+        statusCode: res.statusCode,
+        durationMs: Number(process.hrtime.bigint() - startedAt) / 1_000_000,
+      }),
+    );
+  }
+
+  private getActorFields(
+    authContext: WorkspaceAuthContext,
+  ): Record<string, string> {
+    if (authContext.type === 'user') {
+      return {
+        userId: authContext.user.id,
+        userWorkspaceId: authContext.userWorkspaceId,
+        workspaceMemberId: authContext.workspaceMemberId,
+      };
+    }
+
+    if (authContext.type === 'pendingActivationUser') {
+      return {
+        userId: authContext.user.id,
+        userWorkspaceId: authContext.userWorkspaceId,
+      };
+    }
+
+    if (authContext.type === 'apiKey') {
+      return {
+        apiKeyId: authContext.apiKey.id,
+      };
+    }
+
+    if (authContext.type === 'application') {
+      return {
+        applicationId: authContext.application.id,
+      };
+    }
+
+    return {};
+  }
+
+  private getSanitizedPath(req: Request): string | undefined {
+    const path =
+      req.baseUrl ||
+      req.path ||
+      (typeof req.originalUrl === 'string'
+        ? req.originalUrl.split('?')[0]
+        : undefined) ||
+      (typeof req.url === 'string' ? req.url.split('?')[0] : undefined);
+
+    return path || undefined;
+  }
+
+  private getGraphqlOperationName(req: Request): string | undefined {
+    const body = req.body as { operationName?: unknown } | undefined;
+
+    return typeof body?.operationName === 'string'
+      ? body.operationName
+      : undefined;
   }
 }
