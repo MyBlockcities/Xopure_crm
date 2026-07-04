@@ -22,6 +22,8 @@ type Output = {
   processedAt: string;
   soc2SchemaValid?: boolean;
   soc2EventHash?: string;
+  soc2RbacDecisionHash?: string;
+  soc2ClaimReviewHash?: string;
 };
 
 type AuditEvent = {
@@ -69,6 +71,72 @@ const readPayloadStringArray = (
     ? value
     : undefined;
 };
+
+const readPayloadBoolean = (
+  payload: Record<string, unknown> | undefined,
+  field: string,
+): boolean | undefined => {
+  const value = payload?.[field];
+
+  return typeof value === 'boolean' ? value : undefined;
+};
+
+const normalizeDecision = (value: string | undefined): 'allow' | 'deny' | 'error' => {
+  if (value === 'deny' || value === 'error') {
+    return value;
+  }
+
+  return 'allow';
+};
+
+const normalizeClaimAuthorType = (
+  value: string | undefined,
+): 'ambassador' | 'admin' | 'system' | undefined => {
+  if (value === 'ambassador' || value === 'admin' || value === 'system') {
+    return value;
+  }
+
+  return undefined;
+};
+
+const normalizeClaimCategory = (
+  value: string | undefined,
+): 'wellness' | 'income' | 'product' | 'testimonial' | 'education' | undefined => {
+  if (
+    value === 'wellness' ||
+    value === 'income' ||
+    value === 'product' ||
+    value === 'testimonial' ||
+    value === 'education'
+  ) {
+    return value;
+  }
+
+  return undefined;
+};
+
+const normalizeClaimReviewStatus = (
+  value: string | undefined,
+): 'approved' | 'rejected' | 'needs_revision' | undefined => {
+  if (value === 'approved' || value === 'rejected' || value === 'needs_revision') {
+    return value;
+  }
+
+  return undefined;
+};
+
+const shouldEmitRbacDecision = (
+  eventName: string,
+  payload: Record<string, unknown> | undefined,
+): boolean =>
+  Boolean(
+    readPayloadString(payload, 'rbac_resource') ||
+      readPayloadString(payload, 'rbac_action') ||
+      readPayloadString(payload, 'rbac_decision') ||
+      eventName.includes('role') ||
+      eventName.includes('permission') ||
+      eventName.includes('rbac'),
+  );
 
 export const handler = async (input: Input): Promise<Output> => {
   const start = performance.now();
@@ -124,6 +192,118 @@ export const handler = async (input: Input): Promise<Output> => {
       after_hash: readPayloadString(input.payload, 'after_hash'),
     },
   });
+  const rbacResult = shouldEmitRbacDecision(eventName, input.payload)
+    ? emitSoc2Event({
+        schemaName: 'rbac_decision',
+        record: {
+          schema_version: '1.0',
+          actor_id: readPayloadString(input.payload, 'actor_id') ?? 'system',
+          actor_role:
+            readPayloadString(input.payload, 'actor_role') ?? 'db_trigger',
+          action:
+            readPayloadString(input.payload, 'rbac_action') ??
+            readPayloadString(input.payload, 'action') ??
+            action,
+          resource:
+            readPayloadString(input.payload, 'rbac_resource') ??
+            `${entityType}:${input.recordId ?? 'unknown-record'}`,
+          decision: normalizeDecision(
+            readPayloadString(input.payload, 'rbac_decision') ??
+              readPayloadString(input.payload, 'decision'),
+          ),
+          reason_code:
+            readPayloadString(input.payload, 'rbac_reason_code') ??
+            readPayloadString(input.payload, 'reason_code') ??
+            'RBAC_POLICY_MATCH',
+          policy_version:
+            readPayloadString(input.payload, 'rbac_policy_version') ??
+            readPayloadString(input.payload, 'policy_version') ??
+            'xopure-rbac.v1',
+          expires_at:
+            readPayloadString(input.payload, 'rbac_expires_at') ??
+            readPayloadString(input.payload, 'expires_at') ??
+            new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+          evaluated_at_utc: processedAt,
+          tailscale_identity: readPayloadString(input.payload, 'tailscale_identity'),
+          jwt_jti: readPayloadString(input.payload, 'jwt_jti'),
+          jit_grant_id: readPayloadString(input.payload, 'jit_grant_id'),
+          retention_class: 'standard',
+          redaction_class: 'internal',
+        },
+      })
+    : undefined;
+  const claimAuthorType = normalizeClaimAuthorType(
+    readPayloadString(input.payload, 'claim_author_type') ??
+      readPayloadString(input.payload, 'claimAuthorType'),
+  );
+  const claimCategory = normalizeClaimCategory(
+    readPayloadString(input.payload, 'claim_category') ??
+      readPayloadString(input.payload, 'claimCategory'),
+  );
+  const claimReviewStatus = normalizeClaimReviewStatus(
+    readPayloadString(input.payload, 'review_status') ??
+      readPayloadString(input.payload, 'reviewStatus'),
+  );
+  const claimId =
+    readPayloadString(input.payload, 'claim_id') ??
+    readPayloadString(input.payload, 'claimId');
+  const claimText =
+    readPayloadString(input.payload, 'claim_text') ??
+    readPayloadString(input.payload, 'claimText');
+  const claimChannel =
+    readPayloadString(input.payload, 'claim_channel') ??
+    readPayloadString(input.payload, 'claimChannel');
+  const reviewerId =
+    readPayloadString(input.payload, 'reviewer_id') ??
+    readPayloadString(input.payload, 'reviewerId') ??
+    readPayloadString(input.payload, 'actor_id');
+  const claimResult =
+    claimId &&
+    claimText &&
+    claimChannel &&
+    claimAuthorType &&
+    claimCategory &&
+    claimReviewStatus &&
+    reviewerId
+      ? emitSoc2Event({
+          schemaName: 'claim_review',
+          record: {
+            schema_version: '1.0',
+            claim_id: claimId,
+            claim_text: claimText,
+            claim_channel: claimChannel,
+            claim_author_type: claimAuthorType,
+            claim_category: claimCategory,
+            prohibited_terms_detected:
+              readPayloadBoolean(input.payload, 'prohibited_terms_detected') ??
+              readPayloadBoolean(input.payload, 'prohibitedTermsDetected') ??
+              false,
+            requires_disclosure:
+              readPayloadBoolean(input.payload, 'requires_disclosure') ??
+              readPayloadBoolean(input.payload, 'requiresDisclosure') ??
+              false,
+            disclosure_present:
+              readPayloadBoolean(input.payload, 'disclosure_present') ??
+              readPayloadBoolean(input.payload, 'disclosurePresent') ??
+              false,
+            substantiation_required:
+              readPayloadBoolean(input.payload, 'substantiation_required') ??
+              readPayloadBoolean(input.payload, 'substantiationRequired') ??
+              false,
+            substantiation_asset_id:
+              readPayloadString(input.payload, 'substantiation_asset_id') ??
+              readPayloadString(input.payload, 'substantiationAssetId'),
+            review_status: claimReviewStatus,
+            reviewer_id: reviewerId,
+            reviewed_at_utc:
+              readPayloadString(input.payload, 'reviewed_at_utc') ??
+              readPayloadString(input.payload, 'reviewedAtUtc') ??
+              processedAt,
+            retention_class: 'standard',
+            redaction_class: 'confidential',
+          },
+        })
+      : undefined;
 
   return {
     success: true,
@@ -136,6 +316,8 @@ export const handler = async (input: Input): Promise<Output> => {
     processedAt,
     soc2SchemaValid: soc2Result.record.schema_valid === true,
     soc2EventHash: soc2Result.record.event_hash,
+    soc2RbacDecisionHash: rbacResult?.record.event_hash,
+    soc2ClaimReviewHash: claimResult?.record.event_hash,
   };
 };
 
@@ -182,6 +364,8 @@ export default defineLogicFunction({
           processedAt: { type: 'string' },
           soc2SchemaValid: { type: 'boolean' },
           soc2EventHash: { type: 'string' },
+          soc2RbacDecisionHash: { type: 'string' },
+          soc2ClaimReviewHash: { type: 'string' },
         },
       },
     ],

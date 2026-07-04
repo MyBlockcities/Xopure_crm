@@ -133,6 +133,104 @@ describe('twenty-sync-audit-event handler', () => {
       consoleSpy.mockRestore();
     });
 
+    it('emits an RBAC decision record for role and permission audit events', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const result = await handler({
+        recordId: 'permission-001',
+        eventName: 'xo.rolePermission.updated',
+        payload: {
+          actor_id: 'user-admin-001',
+          actor_role: 'admin',
+          rbac_action: 'grant',
+          rbac_resource: 'xopureCommission.assignedAmbassador',
+          rbac_decision: 'allow',
+          rbac_reason_code: 'MANAGER_ROLE_FIELD_GRANT',
+          rbac_policy_version: 'xopure-rbac.v2',
+          rbac_expires_at: '2026-07-04T14:00:00.000Z',
+          tailscale_identity: 'admin@xopure.tailnet',
+          jwt_jti: 'jti-001',
+          jit_grant_id: 'jit-001',
+        },
+      });
+
+      expect(result).toHaveProperty('soc2RbacDecisionHash', 'soc2-event-hash');
+      expect(mocks.emitSoc2Event).toHaveBeenCalledTimes(2);
+      expect(mocks.emitSoc2Event).toHaveBeenNthCalledWith(2, {
+        schemaName: 'rbac_decision',
+        record: expect.objectContaining({
+          schema_version: '1.0',
+          actor_id: 'user-admin-001',
+          actor_role: 'admin',
+          action: 'grant',
+          resource: 'xopureCommission.assignedAmbassador',
+          decision: 'allow',
+          reason_code: 'MANAGER_ROLE_FIELD_GRANT',
+          policy_version: 'xopure-rbac.v2',
+          expires_at: '2026-07-04T14:00:00.000Z',
+          tailscale_identity: 'admin@xopure.tailnet',
+          jwt_jti: 'jti-001',
+          jit_grant_id: 'jit-001',
+          retention_class: 'standard',
+          redaction_class: 'internal',
+        }),
+      });
+
+      consoleSpy.mockRestore();
+    });
+
+    it('emits a claim review record when claim review fields are present', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const result = await handler({
+        recordId: 'claim-review-001',
+        eventName: 'xo.claimReview.updated',
+        payload: {
+          actor_id: 'reviewer-001',
+          actor_role: 'admin',
+          claim_id: 'claim-001',
+          claim_text: 'Supports joint health with daily use.',
+          claim_channel: 'instagram',
+          claim_author_type: 'ambassador',
+          claim_category: 'wellness',
+          prohibited_terms_detected: false,
+          requires_disclosure: true,
+          disclosure_present: true,
+          substantiation_required: true,
+          substantiation_asset_id: 'asset-001',
+          review_status: 'approved',
+          reviewer_id: 'reviewer-001',
+          reviewed_at_utc: '2026-07-04T13:30:00.000Z',
+        },
+      });
+
+      expect(result).toHaveProperty('soc2ClaimReviewHash', 'soc2-event-hash');
+      expect(mocks.emitSoc2Event).toHaveBeenCalledTimes(2);
+      expect(mocks.emitSoc2Event).toHaveBeenNthCalledWith(2, {
+        schemaName: 'claim_review',
+        record: expect.objectContaining({
+          schema_version: '1.0',
+          claim_id: 'claim-001',
+          claim_text: 'Supports joint health with daily use.',
+          claim_channel: 'instagram',
+          claim_author_type: 'ambassador',
+          claim_category: 'wellness',
+          prohibited_terms_detected: false,
+          requires_disclosure: true,
+          disclosure_present: true,
+          substantiation_required: true,
+          substantiation_asset_id: 'asset-001',
+          review_status: 'approved',
+          reviewer_id: 'reviewer-001',
+          reviewed_at_utc: '2026-07-04T13:30:00.000Z',
+          retention_class: 'standard',
+          redaction_class: 'confidential',
+        }),
+      });
+
+      consoleSpy.mockRestore();
+    });
+
     it('emits a sanitized structured console event for an updated XO object with changed fields', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
