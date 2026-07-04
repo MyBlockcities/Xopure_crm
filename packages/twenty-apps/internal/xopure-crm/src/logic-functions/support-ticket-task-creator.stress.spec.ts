@@ -47,7 +47,7 @@ describe('support-ticket-task-creator stress tests', () => {
       vi.fn(async () => ({
         ok: true,
         json: async () => ({ id: `multica-issue-${++issueCounter}` }),
-        text: async () => '',
+        text: async (): Promise<string> => '',
       })),
     );
 
@@ -101,7 +101,7 @@ describe('support-ticket-task-creator stress tests', () => {
       vi.fn(async () => ({
         ok: true,
         json: async () => ({ id: `multica-${++counter}` }),
-        text: async () => '',
+        text: async (): Promise<string> => '',
       })),
     );
 
@@ -155,9 +155,9 @@ describe('support-ticket-task-creator stress tests', () => {
       vi.fn(async () => {
         counter++;
         if (counter % 3 === 0) {
-          return { ok: false, status: 503, json: async () => ({}), text: async () => 'Unavailable' };
+          return { ok: false, status: 503, json: async () => ({}), text: async (): Promise<string> => 'Unavailable' };
         }
-        return { ok: true, json: async () => ({ id: `multica-${counter}` }), text: async () => '' };
+        return { ok: true, json: async () => ({ id: `multica-${counter}` }), text: async (): Promise<string> => '' };
       }),
     );
 

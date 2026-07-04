@@ -71,12 +71,17 @@ const handler = async (): Promise<Output> => {
   }
 
   const client = new CoreApiClient();
+  const api = client as unknown as {
+    query(req: Record<string, unknown>): Promise<unknown>;
+    mutation(req: Record<string, unknown>): Promise<unknown>;
+  };
+
   let updated = 0;
   let skipped = 0;
 
   for (const issue of issues) {
     // Find the Twenty ticket linked to this Multica issue
-    const findResult = await client.query({
+    const findResult = await api.query({
       xopureSupportTickets: {
         __args: {
           filter: { multicaIssueId: { eq: issue.id } },
@@ -143,7 +148,7 @@ const handler = async (): Promise<Output> => {
     }
 
     if (Object.keys(updateData).length > 0) {
-      await client.mutation({
+      await api.mutation({
         updateXopureSupportTicket: {
           __args: {
             id: ticket.id,

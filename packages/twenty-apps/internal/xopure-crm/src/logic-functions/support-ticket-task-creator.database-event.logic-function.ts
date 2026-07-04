@@ -165,10 +165,14 @@ export const handler = async (input: Input): Promise<Output> => {
   try {
     const client = new CoreApiClient();
     const subject = input.record?.subject ?? 'New ticket';
+    const api = client as unknown as {
+      mutation(req: Record<string, unknown>): Promise<unknown>;
+    };
+
     const dueAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
 
     // --- Step 1: Create the Twenty Task ---
-    const taskResult = await client.mutation({
+    const taskResult = await api.mutation({
       createTask: {
         __args: {
           data: {
@@ -183,7 +187,7 @@ export const handler = async (input: Input): Promise<Output> => {
     const taskId = extractId(taskResult, 'createTask');
 
     if (taskId && supportTicketId) {
-      await client.mutation({
+      await api.mutation({
         createTaskTarget: {
           __args: {
             data: {
@@ -254,7 +258,7 @@ export const handler = async (input: Input): Promise<Output> => {
 
               // Write back multicaIssueId to the support ticket record
               if (supportTicketId) {
-                await client.mutation({
+                await api.mutation({
                   updateXopureSupportTicket: {
                     __args: {
                       id: supportTicketId,

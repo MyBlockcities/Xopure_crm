@@ -42,9 +42,14 @@ const handler = async (): Promise<Output> => {
   }
 
   const client = new CoreApiClient();
+  const api = client as unknown as {
+    query(req: Record<string, unknown>): Promise<unknown>;
+    mutation(req: Record<string, unknown>): Promise<unknown>;
+  };
+
 
   // Find tickets without multicaIssueId
-  const queryResult = await client.query({
+  const queryResult = await api.query({
     xopureSupportTickets: {
       __args: {
         filter: { multicaIssueId: { is: 'null' } },
@@ -161,7 +166,7 @@ const handler = async (): Promise<Output> => {
 
       const issue = await response.json();
       if (typeof issue === 'object' && issue !== null && 'id' in issue && typeof issue.id === 'string') {
-        await client.mutation({
+        await api.mutation({
           updateXopureSupportTicket: {
             __args: {
               id: ticket.id,

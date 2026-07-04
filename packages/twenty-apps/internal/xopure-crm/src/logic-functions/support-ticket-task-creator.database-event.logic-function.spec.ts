@@ -31,11 +31,11 @@ describe('support ticket task creator handler', () => {
       .mockResolvedValueOnce({ createTaskTarget: { id: 'task-target-1' } })
       .mockResolvedValueOnce({ updateXopureSupportTicket: { id: 'ticket-1' } });
 
-    const fetchMock = vi.fn(async () => ({
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       json: async () => ({ id: 'multica-issue-1', identifier: 'X0-99' }),
       text: async () => '',
-    })) as unknown as typeof fetch;
+    }));
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await handler({
@@ -129,7 +129,7 @@ describe('support ticket task creator handler', () => {
         status: 503,
         json: async () => ({}),
         text: async () => 'Service unavailable',
-      })) as unknown as typeof fetch,
+      })),
     );
 
     const result = await handler({
@@ -160,7 +160,7 @@ describe('support ticket task creator handler', () => {
         ok: true,
         json: async () => ({ id: 'multica-issue-1' }),
         text: async () => '',
-      })) as unknown as typeof fetch,
+      })),
     );
 
     const result = await handler({
@@ -200,7 +200,7 @@ describe('support ticket task creator handler', () => {
         ok: true,
         json: async () => ({ id: 'multica-issue-10' }),
         text: async () => '',
-      })) as unknown as typeof fetch,
+      })),
     );
 
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});

@@ -7,6 +7,7 @@ import { Pool, type PoolClient } from 'pg';
 import { ambassadorCommandCenterBlueprint } from '../blueprints/ambassador-command-center.blueprint';
 import { compIntegrityDashboardBlueprint } from '../blueprints/comp-integrity-dashboard.blueprint';
 import { supportDashboardBlueprint } from '../blueprints/support-dashboard.blueprint';
+import { resolveDashboardFilter } from '../blueprints/resolve-dashboard-filter';
 import type {
   DashboardBlueprint,
   DashboardGraphWidgetBlueprint,
@@ -851,7 +852,7 @@ const buildGraphConfiguration = (
       displayDataLabel: configuration.displayDataLabel,
       prefix: configuration.prefix,
       suffix: configuration.suffix,
-      filter: configuration.filter,
+      filter: resolveDashboardFilter(objectMetadata, configuration.filter),
     };
   }
 
@@ -874,7 +875,7 @@ const buildGraphConfiguration = (
       hideEmptyCategory: configuration.hideEmptyCategory,
       color: configuration.color,
       description: configuration.description,
-      filter: configuration.filter,
+      filter: resolveDashboardFilter(objectMetadata, configuration.filter),
     };
   }
 
@@ -895,7 +896,7 @@ const buildGraphConfiguration = (
     displayLegend: configuration.displayLegend,
     color: configuration.color,
     description: configuration.description,
-    filter: configuration.filter,
+    filter: resolveDashboardFilter(objectMetadata, configuration.filter),
     timezone: configuration.timezone,
     firstDayOfTheWeek: configuration.firstDayOfTheWeek,
   };
