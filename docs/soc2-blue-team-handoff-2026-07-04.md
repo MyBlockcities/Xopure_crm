@@ -2,7 +2,7 @@
 
 ## Readiness
 
-Blue team is ready for an initial compliance-sniffer pass after the current X0-148 OTEL config commit is pushed.
+Blue team is ready for an initial Comp AI compliance pass after the current X0-148 OTEL config commit is pushed.
 
 Readiness level: 7/10.
 
@@ -16,7 +16,7 @@ What is ready:
 Not ready / high-value red-team targets:
 - The SOC 2 outbox is in-memory only; durable storage, replay, and gap detection are not implemented.
 - Only four schema classes are implemented. Missing from the SOC2 reference scope: `comp_calculation_event`, `payout_manifest`, `data_access_event`, and `product_quality_event`.
-- The Comp AI compliance validator/sniffer is not in this repo. Treat it as an external tool and point it at this repo plus `/home/n4s5ti/Documents/dev/comp/` if that runtime owns the validator.
+- Comp AI is the external compliance platform for this pass; its repo is `/home/n4s5ti/Documents/dev/comp/`. The relevant automation surface is `apps/mcp-server`, especially the task, evidence export, findings, policy, Trust Center, questionnaire, cloud check, and device compliance tools.
 - Current OpenTelemetry metrics arrive in Hetz Prometheus, but service identity currently shows as `unknown_service:*`; Twenty's custom `MeterProvider` does not appear to apply `OTEL_SERVICE_NAME` / `OTEL_RESOURCE_ATTRIBUTES` to exported metrics.
 - Do not call this SOC 2 compliant, certified, or audited. Use `SOC 2-ready` or `SOC 2-aligned` until an auditor issues a report.
 
@@ -43,7 +43,7 @@ Fresh-agent bootstrap:
 
 ## Blue-team first pass
 
-Goal: make the system defensible against the first compliance-sniffer pass, not perfect.
+Goal: make the system defensible against the first Comp AI compliance pass, not perfect.
 
 Recommended checks:
 - Validate all current SOC 2 schemas reject missing required evidence fields.
@@ -67,7 +67,7 @@ podman compose -f packages/twenty-docker/podman/podman-compose.yml config
 
 ## Red-team target list
 
-Attack these before the external validator does:
+Attack these before Comp AI does:
 1. In-memory outbox can lose evidence on process restart.
 2. No immutable archive/write-ahead log for emitted SOC 2 records.
 3. No replay tool that proves a hash chain from genesis to current head.
@@ -82,6 +82,6 @@ Attack these before the external validator does:
 
 - Do not deploy to Railway or production without explicit human approval.
 - Do not modify unrelated uncommitted WIP while preparing the blue-team pass.
-- Do not assume the Comp AI validator exists in this repo.
+- Do not assume Comp AI is part of this repo; it is the external `/home/n4s5ti/Documents/dev/comp/` platform/MCP surface.
 - Do not call XO Pure SOC 2 certified/audited/compliant.
 - Do not use production secrets or paste Tailnet/API credentials into docs or comments.
