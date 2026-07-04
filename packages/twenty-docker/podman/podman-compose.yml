@@ -18,6 +18,13 @@ services:
     volumes:
       - twenty-redis-data:/data:Z
 
+  otel-forwarder:
+    container_name: twenty-otel-forwarder
+    image: alpine/socat:latest
+    network_mode: "host"
+    restart: "always"
+    command: ["TCP-LISTEN:14318,fork,reuseaddr,bind=0.0.0.0", "TCP:100.119.117.43:4318"]
+
   server:
     container_name: twenty-server
     image: twentycrm/twenty:latest
@@ -28,7 +35,13 @@ services:
       REDIS_URL: "redis://twenty-redis:6379"
       APP_SECRET: ${APP_SECRET}
       NODE_ENV: production
+      LOGIC_FUNCTION_TYPE: "LOCAL"
       LOG_LEVEL: info
+      METER_DRIVER: opentelemetry
+      OTLP_COLLECTOR_METRICS_ENDPOINT_URL: http://host.containers.internal:14318/v1/metrics
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.containers.internal:14318
+      OTEL_SERVICE_NAME: twenty-server-xopure
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=xopure,deployment.environment=local-dev,service.instance.id=twenty-server-001
     volumes:
       - twenty-server-data:/app/docker-data:Z
     ports:
@@ -45,7 +58,13 @@ services:
       APP_SECRET: ${APP_SECRET}
       DISABLE_DB_MIGRATIONS: "true"
       NODE_ENV: production
+      LOGIC_FUNCTION_TYPE: "LOCAL"
       LOG_LEVEL: info
+      METER_DRIVER: opentelemetry
+      OTLP_COLLECTOR_METRICS_ENDPOINT_URL: http://host.containers.internal:14318/v1/metrics
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.containers.internal:14318
+      OTEL_SERVICE_NAME: twenty-worker-xopure
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=xopure,deployment.environment=local-dev,service.instance.id=twenty-worker-001
     volumes:
       - twenty-server-data:/app/docker-data:Z
     init: true
