@@ -13,7 +13,7 @@ export type Soc2ValidationResult = {
 };
 
 type FieldRule = {
-  type: 'string' | 'boolean' | 'integer';
+  type: 'string' | 'boolean' | 'integer' | 'string_array';
   required?: boolean;
   enum?: readonly string[];
   isoDateTime?: boolean;
@@ -57,10 +57,37 @@ const CLAIM_REVIEW_STATUSES = [
   'rejected',
   'needs_revision',
 ] as const;
+const RETENTION_CLASSES = ['short', 'standard', 'long', 'legal_hold'] as const;
+const REDACTION_CLASSES = ['public', 'internal', 'confidential', 'restricted'] as const;
+
+const SOC2_EVIDENCE_REQUIRED_FIELDS = [
+  'ingested_at_utc',
+  'producer',
+  'environment',
+  'event_hash',
+  'previous_event_hash',
+  'retention_class',
+  'redaction_class',
+  'schema_valid',
+] as const;
+
+const SOC2_EVIDENCE_FIELDS = {
+  ingested_at_utc: { type: 'string', isoDateTime: true },
+  producer: { type: 'string' },
+  environment: { type: 'string' },
+  event_hash: { type: 'string' },
+  previous_event_hash: { type: 'string' },
+  retention_class: { type: 'string', enum: RETENTION_CLASSES },
+  redaction_class: { type: 'string', enum: REDACTION_CLASSES },
+  schema_valid: { type: 'boolean' },
+  validation_errors: { type: 'string_array' },
+  quarantine_reason: { type: 'string' },
+} satisfies Record<string, FieldRule>;
 
 export const SOC2_SCHEMA_RULES: Record<Soc2SchemaName, SchemaRuleSet> = {
   audit_event: {
     required: [
+      ...SOC2_EVIDENCE_REQUIRED_FIELDS,
       'schema_version',
       'event_id',
       'event_type',
@@ -75,9 +102,10 @@ export const SOC2_SCHEMA_RULES: Record<Soc2SchemaName, SchemaRuleSet> = {
       'policy_version',
       'trace_id',
       'request_id',
-      'source_ip_or_tailnet_node',
+      'source_ip',
     ],
     fields: {
+      ...SOC2_EVIDENCE_FIELDS,
       schema_version: { type: 'string' },
       event_id: { type: 'string' },
       event_type: { type: 'string' },
@@ -95,13 +123,17 @@ export const SOC2_SCHEMA_RULES: Record<Soc2SchemaName, SchemaRuleSet> = {
       policy_version: { type: 'string' },
       trace_id: { type: 'string' },
       request_id: { type: 'string' },
-      source_ip_or_tailnet_node: { type: 'string' },
+      source_ip: { type: 'string' },
+      tailnet_node: { type: 'string' },
+      tailnet_user: { type: 'string' },
+      tailnet_tags: { type: 'string_array' },
       before_hash: { type: 'string' },
       after_hash: { type: 'string' },
     },
   },
   rbac_decision: {
     required: [
+      ...SOC2_EVIDENCE_REQUIRED_FIELDS,
       'schema_version',
       'actor_id',
       'actor_role',
@@ -113,6 +145,7 @@ export const SOC2_SCHEMA_RULES: Record<Soc2SchemaName, SchemaRuleSet> = {
       'expires_at',
     ],
     fields: {
+      ...SOC2_EVIDENCE_FIELDS,
       schema_version: { type: 'string' },
       actor_id: { type: 'string' },
       actor_role: { type: 'string' },
@@ -130,6 +163,7 @@ export const SOC2_SCHEMA_RULES: Record<Soc2SchemaName, SchemaRuleSet> = {
   },
   ledger_entry: {
     required: [
+      ...SOC2_EVIDENCE_REQUIRED_FIELDS,
       'schema_version',
       'ledger_id',
       'status',
@@ -144,6 +178,7 @@ export const SOC2_SCHEMA_RULES: Record<Soc2SchemaName, SchemaRuleSet> = {
       'recorded_at',
     ],
     fields: {
+      ...SOC2_EVIDENCE_FIELDS,
       schema_version: { type: 'string' },
       ledger_id: { type: 'string' },
       status: { type: 'string', enum: LEDGER_STATUSES },
@@ -162,6 +197,7 @@ export const SOC2_SCHEMA_RULES: Record<Soc2SchemaName, SchemaRuleSet> = {
   },
   claim_review: {
     required: [
+      ...SOC2_EVIDENCE_REQUIRED_FIELDS,
       'schema_version',
       'claim_id',
       'claim_text',
@@ -177,6 +213,7 @@ export const SOC2_SCHEMA_RULES: Record<Soc2SchemaName, SchemaRuleSet> = {
       'reviewed_at_utc',
     ],
     fields: {
+      ...SOC2_EVIDENCE_FIELDS,
       schema_version: { type: 'string' },
       claim_id: { type: 'string' },
       claim_text: { type: 'string' },
@@ -244,6 +281,14 @@ const validateField = (
     errors.push(`${field} must be integer cents or basis points`);
   }
 
+  if (
+    rule.type === 'string_array' &&
+    (!Array.isArray(value) ||
+      value.some((item) => typeof item !== 'string' || item.trim().length === 0))
+  ) {
+    errors.push(`${field} must be an array of non-empty strings`);
+  }
+
   return errors;
 };
 
@@ -298,6 +343,30 @@ const validateClaimReviewInvariants = (
   return errors;
 };
 
+const validateEvidenceLifecycleInvariants = (
+  record: Record<string, unknown>,
+): string[] => {
+  const errors: string[] = [];
+
+  if (record.schema_valid === false) {
+    if (
+      !Array.isArray(record.validation_errors) ||
+      record.validation_errors.length === 0
+    ) {
+      errors.push('validation_errors is required when schema_valid is false');
+    }
+
+    if (
+      typeof record.quarantine_reason !== 'string' ||
+      record.quarantine_reason.trim().length === 0
+    ) {
+      errors.push('quarantine_reason is required when schema_valid is false');
+    }
+  }
+
+  return errors;
+};
+
 export const validateSoc2Record = (
   schemaName: Soc2SchemaName,
   value: unknown,
@@ -317,6 +386,7 @@ export const validateSoc2Record = (
     ...Object.entries(schemaRules.fields).flatMap(([field, rule]) =>
       validateField(value, field, rule),
     ),
+    ...validateEvidenceLifecycleInvariants(value),
   ];
 
   if (schemaName === 'ledger_entry') {

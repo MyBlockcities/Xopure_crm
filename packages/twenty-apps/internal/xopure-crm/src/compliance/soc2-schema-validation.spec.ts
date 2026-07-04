@@ -6,8 +6,22 @@ import { validateSoc2Record } from './soc2-schema-validation';
 // Helpers
 // ---------------------------------------------------------------------------
 
+function validEvidenceFields(): Record<string, unknown> {
+  return {
+    ingested_at_utc: '2026-07-03T12:00:01Z',
+    producer: 'xopure-crm',
+    environment: 'test',
+    event_hash: 'sha256:audit-event-hash',
+    previous_event_hash: 'sha256:previous-event-hash',
+    retention_class: 'standard',
+    redaction_class: 'internal',
+    schema_valid: true,
+  };
+}
+
 function validAuditEvent(): Record<string, unknown> {
   return {
+    ...validEvidenceFields(),
     schema_version: '1.0',
     event_id: 'aevt-001',
     event_type: 'auth.rbac.allowed',
@@ -21,13 +35,18 @@ function validAuditEvent(): Record<string, unknown> {
     policy_version: 'v2026.1',
     trace_id: 'trace-xyz-789',
     request_id: 'req-00001',
-    source_ip_or_tailnet_node: '100.x.y.z',
+    source_ip: '100.64.0.10',
+    tailnet_node: 'crm-gateway',
+    tailnet_user: 'reviews-bot@xopure.tailnet',
+    tailnet_tags: ['tag:xopure-dev-crm', 'tag:observability'],
     occurred_at_utc: '2026-07-03T12:00:00Z',
   };
 }
 
 function validRbacDecision(): Record<string, unknown> {
   return {
+    ...validEvidenceFields(),
+    event_hash: 'sha256:rbac-decision-hash',
     schema_version: '1.0',
     actor_id: 'user-abc-123',
     actor_role: 'ambassador_rep',
@@ -46,6 +65,8 @@ function validRbacDecision(): Record<string, unknown> {
 
 function validLedgerEntry(): Record<string, unknown> {
   return {
+    ...validEvidenceFields(),
+    event_hash: 'sha256:ledger-entry-hash',
     schema_version: '1.0',
     ledger_id: 'led-1001',
     status: 'settled',
@@ -63,6 +84,8 @@ function validLedgerEntry(): Record<string, unknown> {
 
 function validClaimReview(): Record<string, unknown> {
   return {
+    ...validEvidenceFields(),
+    event_hash: 'sha256:claim-review-hash',
     schema_version: '1.0',
     claim_id: 'clm-001',
     claim_text: 'Supports joint health with glucosamine',
@@ -91,6 +114,48 @@ describe('validateSoc2Record — audit_event', () => {
     expect(result.success).toBe(true);
   });
 
+  it('rejects audit_event when the split source_ip field is missing', () => {
+    const input = validAuditEvent();
+    delete input.source_ip;
+    input.source_ip_or_tailnet_node = '100.x.y.z';
+
+    const result = validateSoc2Record('audit_event', input);
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toBeDefined();
+    expect(result.errors!.length).toBeGreaterThan(0);
+    const messages = result.errors!.map((e: string) => e.toLowerCase());
+    expect(messages.some((m: string) => m.includes('source_ip'))).toBe(true);
+  });
+
+  it('rejects audit_event when tailnet_tags is not a string array', () => {
+    const input = validAuditEvent();
+    input.tailnet_tags = 'tag:xopure-dev-crm';
+
+    const result = validateSoc2Record('audit_event', input);
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toBeDefined();
+    expect(result.errors!.length).toBeGreaterThan(0);
+    const messages = result.errors!.map((e: string) => e.toLowerCase());
+    expect(messages.some((m: string) => m.includes('tailnet_tags'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects audit_event when evidence-chain fields are missing', () => {
+    const input = validAuditEvent();
+    delete input.event_hash;
+
+    const result = validateSoc2Record('audit_event', input);
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toBeDefined();
+    expect(result.errors!.length).toBeGreaterThan(0);
+    const messages = result.errors!.map((e: string) => e.toLowerCase());
+    expect(messages.some((m: string) => m.includes('event_hash'))).toBe(true);
+  });
+
   it('rejects audit_event when schema_version is missing', () => {
     const input = validAuditEvent();
     delete input.schema_version;
@@ -104,6 +169,35 @@ describe('validateSoc2Record — audit_event', () => {
     expect(messages.some((m: string) => m.includes('schema_version'))).toBe(
       true,
     );
+  });
+
+  it('requires quarantine details when schema_valid is false', () => {
+    const input = validAuditEvent();
+    input.schema_valid = false;
+
+    const result = validateSoc2Record('audit_event', input);
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toBeDefined();
+    expect(result.errors!.length).toBeGreaterThan(0);
+    const messages = result.errors!.map((e: string) => e.toLowerCase());
+    expect(messages.some((m: string) => m.includes('validation_errors'))).toBe(
+      true,
+    );
+    expect(messages.some((m: string) => m.includes('quarantine_reason'))).toBe(
+      true,
+    );
+  });
+
+  it('accepts quarantined audit_event when validation lifecycle details are present', () => {
+    const input = validAuditEvent();
+    input.schema_valid = false;
+    input.validation_errors = ['resource_id is required'];
+    input.quarantine_reason = 'schema_validation_failed';
+
+    const result = validateSoc2Record('audit_event', input);
+
+    expect(result.success).toBe(true);
   });
 });
 
