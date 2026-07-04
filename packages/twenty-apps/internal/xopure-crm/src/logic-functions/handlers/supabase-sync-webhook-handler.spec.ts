@@ -1,7 +1,42 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { handleSupabaseSyncWebhook } from './supabase-sync-webhook-handler';
 import { mapSupabaseRecords } from '../../supabase-sync/utils/map-supabase-record';
+import { emitSoc2Event } from 'src/compliance/soc2-event-emitter';
+import { mapToLedgerEntry } from 'src/compliance/soc2-ledger-adapter';
+
+vi.mock('src/compliance/soc2-event-emitter', () => ({
+  emitSoc2Event: vi.fn(({ record }: { record: Record<string, unknown> }) => ({
+    record: {
+      ...record,
+      schema_valid: true,
+      event_hash: 'soc2-event-hash',
+    },
+  })),
+}));
+
+vi.mock('src/compliance/soc2-ledger-adapter', () => ({
+  mapToLedgerEntry: vi.fn(() => ({
+    schema_version: '1.0',
+    ledger_id: 'ledger-1',
+    status: 'paid',
+    pay_area: 'CUSTOMER_SALES',
+    amount_cents: 1000,
+    basis_cents: 1000,
+    rate_bps: 0,
+    recipient_id: 'recipient-1',
+    buyer_id: 'buyer-1',
+    classification: 'payment',
+    order_id: 'order-1',
+    recorded_at: '2026-07-04T12:00:00.000Z',
+    retention_class: 'standard',
+    redaction_class: 'internal',
+  })),
+}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 const buildEvent = (params: {
   secret?: string;
@@ -291,6 +326,8 @@ describe('handleSupabaseSyncWebhook', () => {
       },
     });
     expect(JSON.stringify(result)).not.toContain('nextStep');
+    expect(mapToLedgerEntry).not.toHaveBeenCalled();
+    expect(emitSoc2Event).not.toHaveBeenCalled();
   });
 
   it('fans out orders webhooks with payment fields into order and payment creates', async () => {
@@ -359,7 +396,80 @@ describe('handleSupabaseSyncWebhook', () => {
         },
       },
     });
+    expect(mapToLedgerEntry).toHaveBeenCalledTimes(1);
+    expect(mapToLedgerEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceTable: 'payments',
+        sourceRecordId: 'order-1',
+        targetObject: 'xopurePayment',
+      }),
+    );
+    expect(emitSoc2Event).toHaveBeenCalledWith({
+      schemaName: 'ledger_entry',
+      record: expect.objectContaining({ ledger_id: 'ledger-1' }),
+    });
     expect(JSON.stringify(result)).not.toContain('do-not-echo');
+  });
+
+  it('emits a SOC2 ledger event for commission ledger upserts', async () => {
+    const client = buildClient({
+      queryResults: [
+        { xopureAmbassadors: { edges: [{ node: { id: 'twenty-ambassador-1' } }] } },
+        { xopureOrders: { edges: [] } },
+        { xopureSyncMaps: { edges: [] } },
+        { xopureCommissions: { edges: [] } },
+      ],
+      mutationResults: [
+        { createXopureCommission: { id: 'twenty-commission-1' } },
+        { createXopureSyncMap: { id: 'sync-map-commission' } },
+      ],
+    });
+
+    const result = await handleSupabaseSyncWebhook({
+      event: buildEvent({
+        secret: 'secret',
+        body: {
+          type: 'INSERT',
+          schema: 'public',
+          table: 'commission_ledger',
+          record: {
+            id: 'commission-1',
+            affiliate_id: 'ambassador-1',
+            order_id: 'order-1',
+            amount_cents: 2215,
+            base_cv_amount: 7000,
+            rate_used: 0.2,
+            status: 'held',
+            paid_at: '2026-07-04T12:00:00.000Z',
+          },
+        },
+      }),
+      expectedSecret: 'secret',
+      client,
+    });
+
+    expect(result).toMatchObject({
+      statusCode: 200,
+      body: {
+        ok: true,
+        status: 'created',
+        sourceTable: 'commission_ledger',
+        sourceRecordId: 'commission-1',
+        targetObject: 'xopureCommission',
+      },
+    });
+    expect(mapToLedgerEntry).toHaveBeenCalledTimes(1);
+    expect(mapToLedgerEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceTable: 'commission_ledger',
+        sourceRecordId: 'commission-1',
+        targetObject: 'xopureCommission',
+      }),
+    );
+    expect(emitSoc2Event).toHaveBeenCalledWith({
+      schemaName: 'ledger_entry',
+      record: expect.objectContaining({ ledger_id: 'ledger-1' }),
+    });
   });
 
   it('fans out orders webhooks with payment fields into order and payment updates', async () => {

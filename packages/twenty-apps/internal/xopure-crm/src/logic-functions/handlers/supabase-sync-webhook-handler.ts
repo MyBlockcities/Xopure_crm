@@ -1,7 +1,10 @@
 import type { SupabaseWebhookPayload } from '../types/supabase-webhook-payload.type';
 import type {
+  MappedSourceRecord,
   UpsertResult,
 } from 'src/supabase-sync/types/mapped-source-record.type';
+import { emitSoc2Event } from 'src/compliance/soc2-event-emitter';
+import { mapToLedgerEntry } from 'src/compliance/soc2-ledger-adapter';
 import type { TwentyClientLike } from 'src/supabase-sync/types/twenty-client-like.type';
 import {
   getSafeSourceRecordId,
@@ -67,6 +70,42 @@ const getHeader = (
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isLedgerSourceTable = (sourceTable: string): boolean =>
+  sourceTable === 'commission_ledger' || sourceTable === 'payments';
+
+const emitSoc2LedgerEvent = (
+  mappedRecord: MappedSourceRecord,
+  upsertResult: UpsertResult,
+): void => {
+  if (!isLedgerSourceTable(mappedRecord.sourceTable)) {
+    return;
+  }
+
+  try {
+    const result = emitSoc2Event({
+      schemaName: 'ledger_entry',
+      record: mapToLedgerEntry(mappedRecord),
+    });
+
+    console.info('xopure_soc2_ledger_event_emitted', {
+      sourceTable: mappedRecord.sourceTable,
+      sourceRecordId: mappedRecord.sourceRecordId,
+      targetObject: upsertResult.targetObject,
+      action: upsertResult.action,
+      schemaValid: result.record.schema_valid === true,
+      eventHash: result.record.event_hash,
+    });
+  } catch (error) {
+    console.warn('xopure_soc2_ledger_event_failed', {
+      sourceTable: mappedRecord.sourceTable,
+      sourceRecordId: mappedRecord.sourceRecordId,
+      targetObject: upsertResult.targetObject,
+      action: upsertResult.action,
+      error: error instanceof Error ? error.message : 'Unknown SOC2 ledger error',
+    });
+  }
+};
 
 const parsePayload = (body: unknown): SupabaseWebhookPayload | null => {
   if (typeof body === 'string') {
@@ -387,6 +426,10 @@ export const handleSupabaseSyncWebhook = async (
 
   for (const [index, upsertResult] of upsertResults.entries()) {
     const mappedRecord = mappedRecords[index];
+
+    if (mappedRecord) {
+      emitSoc2LedgerEvent(mappedRecord, upsertResult);
+    }
 
     console.info('xopure_supabase_sync_row_processed', {
       sourceTable: mappedRecord?.sourceTable,
