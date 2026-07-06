@@ -43,3 +43,10 @@ export class Soc2EventOutbox {
     return last?.event_hash;
   }
 }
+
+const DEFAULT_OUTBOX = new Soc2EventOutbox();
+
+/** Return the module-level SOC2 event outbox shared by runtime producers. */
+export function getDefaultOutbox(): Soc2EventOutbox {
+  return DEFAULT_OUTBOX;
+}

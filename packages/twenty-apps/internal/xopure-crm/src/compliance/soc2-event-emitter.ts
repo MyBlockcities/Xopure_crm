@@ -6,7 +6,7 @@ import type { Soc2SchemaName, Soc2ValidationResult } from './soc2-schema-validat
 import { validateSoc2Record } from './soc2-schema-validation';
 import { redactRecord } from './soc2-redaction';
 import type { Soc2EmittedRecord } from './soc2-event-outbox';
-import { Soc2EventOutbox } from './soc2-event-outbox';
+import { getDefaultOutbox, Soc2EventOutbox } from './soc2-event-outbox';
 import { computeEventHash } from './soc2-event-hash';
 
 // ---------------------------------------------------------------------------
@@ -35,9 +35,6 @@ export interface EmitSoc2EventResult {
   validation: Soc2ValidationResult;
 }
 
-/** Default shared outbox instance. */
-const DEFAULT_OUTBOX = new Soc2EventOutbox();
-
 /**
  * Redact, validate, hash, and enqueue a SOC2 event.
  *
@@ -56,7 +53,7 @@ export function emitSoc2Event(params: EmitSoc2EventParams): EmitSoc2EventResult 
     producer = 'xopure-crm',
     environment = 'development',
     now = new Date(),
-    outbox = DEFAULT_OUTBOX,
+    outbox = getDefaultOutbox(),
   } = params;
 
   // 1. Redact sensitive values first
