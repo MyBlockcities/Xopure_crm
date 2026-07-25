@@ -903,4 +903,88 @@ describe('handleSupabaseSyncWebhook', () => {
     // No mutations at all — no target write, no sync map write
     expect(client.mutation).not.toHaveBeenCalled();
   });
+ 
+   it('tombstones both order and payment sync maps on order DELETE even when old_record lacks payment fields', async () => {
+     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const client = buildClient({
+      queryResults: [
+         // findSyncMap for order sync key — exists
+         {
+           xopureSyncMaps: {
+             edges: [{ node: { id: 'sync-map-order', targetRecordId: 'twenty-order-1', payloadHash: 'stale' } }],
+           },
+         },
+         // findSyncMap for payment sync key — exists
+         {
+           xopureSyncMaps: {
+             edges: [{ node: { id: 'sync-map-payment', targetRecordId: 'twenty-payment-1', payloadHash: 'stale' } }],
+           },
+         },
+      ],
+       mutationResults: [
+         { updateXopureSyncMap: { id: 'sync-map-order' } },
+         { updateXopureSyncMap: { id: 'sync-map-payment' } },
+      ],
+     });
+ 
+    const result = await handleSupabaseSyncWebhook({
+      event: buildEvent({
+        secret: 'secret',
+         body: {
+          type: 'DELETE',
+          schema: 'public',
+           table: 'orders',
+          old_record: {
+             id: 'order-1',
+             commerce_order_id: 'commerce-order-1',
+             fulfillment_status: 'fulfilled',
+             currency: 'USD',
+            updated_at: '2026-05-01T00:00:00.000Z',
+             // Intentionally NO payment fields (payment_gateway, payment_status, total_cents, etc.)
+           },
+         },
+      }),
+      expectedSecret: 'secret',
+      client,
+     });
+ 
+    expect(result).toMatchObject({
+      statusCode: 200,
+       body: {
+        ok: true,
+        status: 'tombstoned',
+         tombstoned: 2,
+         sourceTable: 'orders',
+         sourceRecordId: 'order-1',
+       },
+     });
+ 
+     // Two mutations: one for the order sync map, one for the payment sync map
+     expect(client.mutation).toHaveBeenCalledTimes(2);
+     expect(client.mutation.mock.calls[0]?.[0]).toMatchObject({
+       updateXopureSyncMap: {
+         __args: {
+           data: { lastStatus: 'DELETED' },
+         },
+       },
+     });
+     expect(client.mutation.mock.calls[1]?.[0]).toMatchObject({
+       updateXopureSyncMap: {
+         __args: {
+           data: { lastStatus: 'DELETED' },
+         },
+       },
+     });
+ 
+     // Transaction logs emitted for both
+     expect(infoSpy).toHaveBeenCalledWith(
+       'xopure_sync_transaction',
+       expect.objectContaining({ syncId: 'supabase.public.orders.order-1', action: 'deleted', hashStatus: 'deleted' }),
+     );
+     expect(infoSpy).toHaveBeenCalledWith(
+       'xopure_sync_transaction',
+       expect.objectContaining({ syncId: 'supabase.public.payments.order-1', action: 'deleted', hashStatus: 'deleted' }),
+     );
+     infoSpy.mockRestore();
+   });
 });

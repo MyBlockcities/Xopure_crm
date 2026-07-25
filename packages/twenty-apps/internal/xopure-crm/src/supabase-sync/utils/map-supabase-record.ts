@@ -785,6 +785,9 @@ const buildMappedRecord = (
       externalIdField: mapping.externalIdField,
       externalIdValue,
       fieldValues,
+      // Include relations so relation-only changes (e.g. customer_id reassignment,
+      // ambassador chain updates) are never skipped by hash-matching.
+      relations: mapRelations(sourceTable, input.record),
     }),
   };
 };

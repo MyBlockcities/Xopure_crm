@@ -7,6 +7,7 @@ import { Pool, type PoolClient } from 'pg';
 import { ambassadorCommandCenterBlueprint } from '../blueprints/ambassador-command-center.blueprint';
 import { compIntegrityDashboardBlueprint } from '../blueprints/comp-integrity-dashboard.blueprint';
 import { supportDashboardBlueprint } from '../blueprints/support-dashboard.blueprint';
+import { telemetryLoggingDashboardBlueprint } from '../blueprints/telemetry-logging-dashboard.blueprint';
 import { resolveDashboardFilter } from '../blueprints/resolve-dashboard-filter';
 import type {
   DashboardBlueprint,
@@ -169,6 +170,7 @@ const dashboardBlueprints: Record<string, DashboardBlueprint> = {
   'risk-exceptions-dashboard': riskExceptionsDashboardBlueprint,
   'comp-integrity-dashboard': compIntegrityDashboardBlueprint,
   'support-dashboard': supportDashboardBlueprint,
+  'telemetry-logging-dashboard': telemetryLoggingDashboardBlueprint,
 };
 
 const quoteIdentifier = (identifier: string): string => {

@@ -5,6 +5,7 @@ import {
   mapSupabaseRecords,
   toSyncKey,
 } from './utils/map-supabase-record';
+import { computeContentHash } from './utils/compute-content-hash';
 
 const baseWebhook = {
   eventType: 'INSERT' as const,
@@ -117,6 +118,45 @@ describe('mapSupabaseRecord', () => {
     expect(first.record.fieldValues).not.toHaveProperty('metadata');
     expect(first.record.fieldValues).not.toHaveProperty('gateway_payload');
     expect(first.record.contentHash).toBe(second.record.contentHash);
+  });
+ 
+   it('includes relations in content hash so relation-only changes are not skipped', () => {
+    // Map an order — produces non-empty relations
+    const result = mapSupabaseRecord({
+      eventType: 'INSERT',
+      sourceSchema: 'public',
+      sourceTable: 'orders',
+      record: {
+        id: 'order-1',
+        user_email: 'customer@example.test',
+        customer_id: 'customer-1',
+        subtotal_cents: 10000,
+        total_cents: 12000,
+        payment_status: 'paid',
+        fulfillment_status: 'fulfilled',
+        affiliate_chain: ['ambassador-1'],
+        currency: 'USD',
+        created_at: '2026-05-01T12:00:00.000Z',
+        updated_at: '2026-05-01T12:01:00.000Z',
+         },
+     });
+ 
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+ 
+    const { contentHash, targetObject, externalIdField, externalIdValue, fieldValues, relations } = result.record;
+ 
+    // Sanity: order produces relations
+    expect(relations.length).toBeGreaterThan(0);
+ 
+    // Verify the mapper's contentHash INCLUDES relations
+    const recomputedWithoutRelations = computeContentHash({ targetObject, externalIdField, externalIdValue, fieldValues });
+    const recomputedWithRelations = computeContentHash({ targetObject, externalIdField, externalIdValue, fieldValues, relations });
+ 
+    // Before fix: contentHash == recomputedWithoutRelations (no relations)
+    // After fix:  contentHash == recomputedWithRelations (includes relations)
+    expect(contentHash).toBe(recomputedWithRelations);
+    expect(contentHash).not.toBe(recomputedWithoutRelations);
   });
 
   it('preserves order and commission money as integer cents', () => {
@@ -242,6 +282,9 @@ describe('mapSupabaseRecord', () => {
         status: 'open',
         priority: 'urgent',
         category: 'shipping',
+        ticket_type: 'product',
+        severity: 'critical',
+        product_tag: 'daily-use',
         channel: 'email',
         subject: 'Where is my order?',
         body: 'The tracking link has not updated.',
@@ -253,6 +296,8 @@ describe('mapSupabaseRecord', () => {
         message_count: 3,
         first_response_at: '2026-06-20T12:00:00.000Z',
         resolved_at: '2026-06-21T12:00:00.000Z',
+        sla_deadline: '2026-06-21T18:00:00.000Z',
+        sla_breached: true,
         closed_at: '2026-06-22T12:00:00.000Z',
         last_activity_at: '2026-06-22T13:00:00.000Z',
         created_at: '2026-06-20T11:00:00.000Z',
@@ -279,6 +324,9 @@ describe('mapSupabaseRecord', () => {
         status: 'NEW',
         priority: 'URGENT',
         category: 'shipping',
+        ticketType: 'PRODUCT',
+        severity: 'CRITICAL',
+        productTag: 'daily-use',
         channel: 'EMAIL',
         relatedOrderId: 'order-1',
         subject: 'Where is my order?',
@@ -289,6 +337,8 @@ describe('mapSupabaseRecord', () => {
         messageCount: 3,
         firstResponseAt: '2026-06-20T12:00:00.000Z',
         resolvedAt: '2026-06-21T12:00:00.000Z',
+        slaDeadline: '2026-06-21T18:00:00.000Z',
+        slaBreached: true,
         closedAt: '2026-06-22T12:00:00.000Z',
         lastActivityAt: '2026-06-22T13:00:00.000Z',
         lastSyncedAt: '2026-06-22T14:00:00.000Z',

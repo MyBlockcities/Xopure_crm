@@ -1,0 +1,11 @@
+export const APPLICATION_ID = 'e3674890-837c-4a56-a46d-4782581fac62';
+export const DEFAULT_ROLE_ID = 'bb354b6f-1eee-4379-ac46-9caf9625ff7a';
+export const GRAFANA_PANEL_COMPONENT_ID = 'e4e6d4cc-b20e-4fcd-90f2-422a200a622c';
+export const COMMAND_MENU_ITEM_ID = '3d8533dc-f6f2-440e-a553-e957d95f7728';
+export const NAVIGATION_MENU_ITEM_ID = 'b02fd468-b927-43f1-91dd-c9de70dfd866';
+export const LOKI_QUERY_FUNCTION_ID = 'cf88bb9c-f4b6-45c7-a5da-2c60e9fcf4d7';
+export const TEMPO_TRACE_FUNCTION_ID = '7c809c0f-ea6d-402a-85b4-40947ebf44f7';
+export const GRAFANA_URL_VAR_ID = 'e42a637c-5133-43cf-a1d8-ec454921fa70';
+export const GRAFANA_API_KEY_VAR_ID = 'bbb4f74a-6f0b-46d4-a978-c0cf98d06a4a';
+export const LOKI_UID_VAR_ID = 'f734b9bd-a2ce-405d-9927-4160efef8e86';
+export const TEMPO_UID_VAR_ID = '0434f90a-037a-4a1f-bf9c-5843616a3454';
