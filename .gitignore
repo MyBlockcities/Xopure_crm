@@ -1,7 +1,8 @@
 **/**/.env
 .DS_Store
 /.idea
-.claude/
+.claude/*
+!.claude/settings.json
 .cursor/debug-*.log
 **/**/node_modules/
 .cache
@@ -64,3 +65,6 @@ screenshots/
 .dolt/
 *.db
 .beads-credential-key
+
+# local graphify knowledge-graph output (never commit)
+**/graphify-out/

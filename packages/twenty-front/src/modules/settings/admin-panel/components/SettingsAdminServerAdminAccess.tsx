@@ -14,7 +14,8 @@ import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { OTPInput } from 'input-otp';
 import { useState } from 'react';
-import { IconDotsVertical, Status } from 'twenty-ui/display';
+import { Status } from 'twenty-ui/data-display';
+import { IconDotsVertical } from 'twenty-ui/icon';
 import { LightIconButton } from 'twenty-ui/input';
 import { MenuItem } from 'twenty-ui/navigation';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
@@ -238,6 +239,7 @@ export const SettingsAdminServerAdminAccess = ({
               maxLength={6}
               value={otp}
               onChange={setOtp}
+              autoFocus
               render={({ slots }) => (
                 <StyledOTPContainer>
                   {slots.slice(0, 3).map((slot, index) => (

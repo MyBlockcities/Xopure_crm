@@ -6,6 +6,8 @@ import { SOURCE_LOCALE } from 'twenty-shared/translations';
 import { ThemeProvider } from 'twenty-ui/theme-constants';
 
 import { SignInUpWorkspaceCreationForm } from '@/auth/sign-in-up/components/internal/SignInUpWorkspaceCreationForm';
+import { isCreatingWorkspaceState } from '@/auth/states/isCreatingWorkspaceState';
+import { isMultiWorkspaceEnabledState } from '@/client-config/states/isMultiWorkspaceEnabledState';
 import {
   jotaiStore,
   resetJotaiStore,
@@ -13,7 +15,7 @@ import {
 import { dynamicActivate } from '~/utils/i18n/dynamicActivate';
 
 const createWorkspaceMock = jest.fn();
-const applySuggestionMock = jest.fn();
+const applySuggestionValueMock = jest.fn();
 const handleSubdomainChangeMock = jest.fn();
 const handleWorkspaceNameChangeMock = jest.fn();
 const useWorkspaceSubdomainFieldMock = jest.fn();
@@ -26,7 +28,14 @@ jest.mock('@/auth/sign-in-up/hooks/useWorkspaceSubdomainField', () => ({
   useWorkspaceSubdomainField: () => useWorkspaceSubdomainFieldMock(),
 }));
 
+global.URL.createObjectURL = jest.fn(() => 'blob:logo-preview');
+global.URL.revokeObjectURL = jest.fn();
+
 dynamicActivate(SOURCE_LOCALE);
+
+const setMultiWorkspaceEnabled = (isEnabled: boolean) => {
+  jotaiStore.set(isMultiWorkspaceEnabledState.atom, isEnabled);
+};
 
 const renderForm = () =>
   render(
@@ -48,81 +57,136 @@ describe('SignInUpWorkspaceCreationForm', () => {
       subdomain: 'apple',
       status: 'available',
       errorMessage: undefined,
-      suggestion: undefined,
+      suggestions: [],
       isAvailable: true,
       handleWorkspaceNameChange: handleWorkspaceNameChangeMock,
       handleSubdomainChange: handleSubdomainChangeMock,
-      applySuggestion: applySuggestionMock,
+      applySuggestionValue: applySuggestionValueMock,
     });
   });
 
-  it('keeps Continue disabled until a workspace name is entered', () => {
-    useWorkspaceSubdomainFieldMock.mockReturnValue({
-      workspaceName: '',
-      subdomain: '',
-      status: 'idle',
-      errorMessage: undefined,
-      suggestion: undefined,
-      isAvailable: false,
-      handleWorkspaceNameChange: handleWorkspaceNameChangeMock,
-      handleSubdomainChange: handleSubdomainChangeMock,
-      applySuggestion: applySuggestionMock,
+  describe('multi-workspace', () => {
+    beforeEach(() => {
+      setMultiWorkspaceEnabled(true);
     });
 
-    renderForm();
+    it('creates the workspace with the chosen name and subdomain', async () => {
+      createWorkspaceMock.mockResolvedValue(true);
 
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+      renderForm();
+
+      const createButton = screen.getByRole('button', {
+        name: 'Create workspace',
+      });
+      expect(createButton).toBeEnabled();
+
+      await act(async () => {
+        fireEvent.click(createButton);
+      });
+
+      expect(createWorkspaceMock).toHaveBeenCalledWith({
+        displayName: 'Apple',
+        subdomain: 'apple',
+        logo: undefined,
+      });
+    });
+
+    it('keeps the loader on through a successful creation, until the redirect', async () => {
+      let resolveCreateWorkspace: () => void = () => {};
+      createWorkspaceMock.mockReturnValue(
+        new Promise<boolean>((resolve) => {
+          resolveCreateWorkspace = () => resolve(true);
+        }),
+      );
+
+      renderForm();
+
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Create workspace' }),
+        );
+      });
+
+      expect(jotaiStore.get(isCreatingWorkspaceState.atom)).toBe(true);
+      expect(createWorkspaceMock).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveCreateWorkspace();
+      });
+
+      expect(jotaiStore.get(isCreatingWorkspaceState.atom)).toBe(true);
+    });
+
+    it('returns to the form when workspace creation fails', async () => {
+      createWorkspaceMock.mockResolvedValue(false);
+
+      renderForm();
+
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Create workspace' }),
+        );
+      });
+
+      expect(jotaiStore.get(isCreatingWorkspaceState.atom)).toBe(false);
+    });
+
+    it('lists available alternatives and applies the picked one when the subdomain is taken', () => {
+      useWorkspaceSubdomainFieldMock.mockReturnValue({
+        workspaceName: 'Stripe',
+        subdomain: 'stripe',
+        status: 'unavailable',
+        errorMessage: undefined,
+        suggestions: ['stripe-2', 'mystripe', 'stripeeinc'],
+        isAvailable: false,
+        handleWorkspaceNameChange: handleWorkspaceNameChangeMock,
+        handleSubdomainChange: handleSubdomainChangeMock,
+        applySuggestionValue: applySuggestionValueMock,
+      });
+
+      renderForm();
+
+      expect(
+        screen.getByText(
+          'Subdomain already in use, here are some alternatives:',
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Create workspace' }),
+      ).toBeDisabled();
+
+      fireEvent.click(screen.getByRole('button', { name: 'mystripe' }));
+
+      expect(applySuggestionValueMock).toHaveBeenCalledWith('mystripe');
+    });
   });
 
-  it('creates the workspace with the chosen name and address in the same tab', async () => {
-    createWorkspaceMock.mockResolvedValue(undefined);
-
-    renderForm();
-
-    const continueButton = screen.getByRole('button', { name: 'Continue' });
-
-    expect(continueButton).toBeEnabled();
-
-    await act(async () => {
-      fireEvent.click(continueButton);
+  describe('single-workspace', () => {
+    beforeEach(() => {
+      setMultiWorkspaceEnabled(false);
     });
 
-    expect(createWorkspaceMock).toHaveBeenCalledWith({
-      displayName: 'Apple',
-      subdomain: 'apple',
-      newTab: false,
+    it('hides the subdomain field and creates without a subdomain', async () => {
+      createWorkspaceMock.mockResolvedValue(true);
+
+      renderForm();
+
+      expect(screen.getByLabelText('Name')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Subdomain')).not.toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Create workspace' }),
+        );
+      });
+
+      expect(createWorkspaceMock).toHaveBeenCalledWith({
+        displayName: 'Apple',
+        logo: undefined,
+      });
+      expect(createWorkspaceMock.mock.calls[0][0]).not.toHaveProperty(
+        'subdomain',
+      );
     });
-  });
-
-  it('routes name edits back through the field hook', () => {
-    renderForm();
-
-    fireEvent.change(screen.getByLabelText('Workspace name'), {
-      target: { value: 'Acme' },
-    });
-
-    expect(handleWorkspaceNameChangeMock).toHaveBeenCalledWith('Acme');
-  });
-
-  it('offers a one-click suggestion when the address is taken', () => {
-    useWorkspaceSubdomainFieldMock.mockReturnValue({
-      workspaceName: 'Apple',
-      subdomain: 'apple',
-      status: 'unavailable',
-      errorMessage: undefined,
-      suggestion: 'apple-2',
-      isAvailable: false,
-      handleWorkspaceNameChange: handleWorkspaceNameChangeMock,
-      handleSubdomainChange: handleSubdomainChangeMock,
-      applySuggestion: applySuggestionMock,
-    });
-
-    renderForm();
-
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
-
-    fireEvent.click(screen.getByText('Use apple-2 instead'));
-
-    expect(applySuggestionMock).toHaveBeenCalledTimes(1);
   });
 });

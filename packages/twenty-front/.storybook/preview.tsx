@@ -1,3 +1,10 @@
+import '@fontsource/dm-mono/400.css';
+import '@fontsource/dm-mono/500.css';
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/inter/700.css';
+
 import { i18n } from '@lingui/core';
 import { I18nProvider } from '@lingui/react';
 import { type Preview } from '@storybook/react-vite';
@@ -98,6 +105,17 @@ const STORYBOOK_DEFAULT_USER_CONTEXT = {
   timeZone: 'UTC',
 };
 
+const INTER_FONT_WEIGHTS = ['400', '500', '600'];
+
+const waitForInterFontLoadedBeforeScreenshot = async () => {
+  await Promise.all(
+    INTER_FONT_WEIGHTS.map((weight) =>
+      document.fonts.load(`${weight} 1em Inter`),
+    ),
+  );
+  await document.fonts.ready;
+};
+
 const preview: Preview = {
   decorators: [
     (Story) => {
@@ -124,7 +142,7 @@ const preview: Preview = {
     resetJotaiStore();
   },
 
-  loaders: [mswLoader],
+  loaders: [mswLoader, waitForInterFontLoadedBeforeScreenshot],
 
   parameters: {
     controls: {

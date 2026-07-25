@@ -103,10 +103,10 @@ describe('ambassador row permissions', () => {
       expect(
         AMBASSADOR_MANAGER_ROW_LEVEL_PERMISSION_PREDICATES.filter(
           (predicate) =>
-            predicate.rowLevelPermissionPredicateGroupUniversalIdentifier ===
+            predicate.predicateGroupUniversalIdentifier ===
             predicateGroup.universalIdentifier,
         ).map(
-          (predicate) => predicate.positionInRowLevelPermissionPredicateGroup,
+          (predicate) => predicate.position,
         ),
       ).toEqual([0, 1]);
     }

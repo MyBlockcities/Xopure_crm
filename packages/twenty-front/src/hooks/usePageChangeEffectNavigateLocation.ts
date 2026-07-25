@@ -2,12 +2,16 @@ import { verifyEmailRedirectPathState } from '@/app/states/verifyEmailRedirectPa
 import { ONBOARDING_PATHS } from '@/auth/constants/OnboardingPaths';
 import { ONGOING_USER_CREATION_PATHS } from '@/auth/constants/OngoingUserCreationPaths';
 import { useHasAccessTokenPair } from '@/auth/hooks/useHasAccessTokenPair';
+import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
 import { returnToPathState } from '@/auth/states/returnToPathState';
-import { calendarBookingPageIdState } from '@/client-config/states/calendarBookingPageIdState';
+import { billingState } from '@/client-config/states/billingState';
 import { useIsCurrentLocationOnAWorkspace } from '@/domain-manager/hooks/useIsCurrentLocationOnAWorkspace';
+import { isMinimalMetadataReadyState } from '@/metadata-store/states/isMinimalMetadataReadyState';
 import { useDefaultHomePagePath } from '@/navigation/hooks/useDefaultHomePagePath';
 import { objectMetadataItemsSelector } from '@/object-metadata/states/objectMetadataItemsSelector';
 import { useOnboardingStatus } from '@/onboarding/hooks/useOnboardingStatus';
+import { isOnboardingCheckoutPendingState } from '@/onboarding/states/isOnboardingCheckoutPendingState';
+import { shouldOpenAiChatAfterOnboardingState } from '@/onboarding/states/shouldOpenAiChatAfterOnboardingState';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useIsWorkspaceActivationStatusEqualsTo } from '@/workspace/hooks/useIsWorkspaceActivationStatusEqualsTo';
 import { isValidReturnToPath } from '@/auth/utils/isValidReturnToPath';
@@ -32,6 +36,7 @@ const readReturnToPathFromUrlSearchParams = (): string | null => {
 
 export const usePageChangeEffectNavigateLocation = () => {
   const hasAccessTokenPair = useHasAccessTokenPair();
+  const currentWorkspace = useAtomStateValue(currentWorkspaceState);
   const { isOnAWorkspace } = useIsCurrentLocationOnAWorkspace();
   const onboardingStatus = useOnboardingStatus();
   const isWorkspaceSuspended = useIsWorkspaceActivationStatusEqualsTo(
@@ -39,7 +44,8 @@ export const usePageChangeEffectNavigateLocation = () => {
   );
   const { defaultHomePagePath } = useDefaultHomePagePath();
   const location = useLocation();
-  const calendarBookingPageId = useAtomStateValue(calendarBookingPageIdState);
+  const billing = useAtomStateValue(billingState);
+  const isBillingEnabled = billing?.isBillingEnabled ?? false;
 
   const someMatchingLocationOf = (appPaths: AppPath[]): boolean =>
     appPaths.some((appPath) => isMatchingLocation(location, appPath));
@@ -51,6 +57,7 @@ export const usePageChangeEffectNavigateLocation = () => {
   const objectMetadataItem = objectMetadataItems?.find(
     (objectMetadataItem) => objectMetadataItem.namePlural === objectNamePlural,
   );
+  const isMinimalMetadataReady = useAtomStateValue(isMinimalMetadataReadyState);
 
   const pageLayoutId = params.pageLayoutId;
   const isOnPageLayoutPage = isMatchingLocation(
@@ -74,8 +81,19 @@ export const usePageChangeEffectNavigateLocation = () => {
     ? returnToPath
     : readReturnToPathFromUrlSearchParams();
 
+  const shouldOpenAiChatAfterOnboarding = useAtomStateValue(
+    shouldOpenAiChatAfterOnboardingState,
+  );
+  const onboardingCompletedPath = shouldOpenAiChatAfterOnboarding
+    ? AppPath.WorkspaceSetup
+    : defaultHomePagePath;
+
+  const isOnboardingCheckoutPending = useAtomStateValue(
+    isOnboardingCheckoutPendingState,
+  );
+
   if (
-    (!hasAccessTokenPair || (hasAccessTokenPair && !isOnAWorkspace)) &&
+    (!hasAccessTokenPair || !isOnAWorkspace || !isDefined(currentWorkspace)) &&
     !someMatchingLocationOf([
       ...ONGOING_USER_CREATION_PATHS,
       AppPath.ResetPassword,
@@ -90,7 +108,6 @@ export const usePageChangeEffectNavigateLocation = () => {
       AppPath.PlanRequired,
       AppPath.PlanRequiredSuccess,
       AppPath.BookCall,
-      AppPath.BookCallDecision,
     ])
   ) {
     if (
@@ -114,13 +131,9 @@ export const usePageChangeEffectNavigateLocation = () => {
 
   if (
     onboardingStatus === OnboardingStatus.WORKSPACE_ACTIVATION &&
-    !someMatchingLocationOf([
-      AppPath.CreateWorkspace,
-      AppPath.BookCallDecision,
-      AppPath.BookCall,
-    ])
+    !isMatchingLocation(location, AppPath.WorkspaceActivation)
   ) {
-    return AppPath.CreateWorkspace;
+    return AppPath.WorkspaceActivation;
   }
 
   if (
@@ -138,20 +151,26 @@ export const usePageChangeEffectNavigateLocation = () => {
   }
 
   if (
+    onboardingStatus === OnboardingStatus.APPS_INSTALLATION &&
+    !isMatchingLocation(location, AppPath.InstallApps)
+  ) {
+    return AppPath.InstallApps;
+  }
+
+  if (
     onboardingStatus === OnboardingStatus.INVITE_TEAM &&
     !isMatchingLocation(location, AppPath.InviteTeam)
   ) {
     return AppPath.InviteTeam;
   }
 
-  if (
-    onboardingStatus === OnboardingStatus.BOOK_ONBOARDING &&
-    !someMatchingLocationOf([AppPath.BookCallDecision, AppPath.BookCall])
-  ) {
-    if (!isDefined(calendarBookingPageId)) {
-      return defaultHomePagePath;
+  if (isBillingEnabled && onboardingStatus === OnboardingStatus.COMPLETED) {
+    if (isMatchingLocation(location, AppPath.InviteTeam)) {
+      return AppPath.PlanRequired;
     }
-    return AppPath.BookCallDecision;
+    if (isMatchingLocation(location, AppPath.PlanRequired)) {
+      return;
+    }
   }
 
   if (
@@ -164,7 +183,14 @@ export const usePageChangeEffectNavigateLocation = () => {
     hasAccessTokenPair &&
     isOnAWorkspace
   ) {
-    return resolvedReturnToPath ?? defaultHomePagePath;
+    if (
+      isMatchingLocation(location, AppPath.PlanRequiredSuccess) &&
+      isOnboardingCheckoutPending
+    ) {
+      return;
+    }
+
+    return resolvedReturnToPath ?? onboardingCompletedPath;
   }
 
   if (isMatchingLocation(location, AppPath.Index) && hasAccessTokenPair) {
@@ -172,6 +198,7 @@ export const usePageChangeEffectNavigateLocation = () => {
   }
 
   if (
+    isMinimalMetadataReady &&
     isMatchingLocation(location, AppPath.RecordIndexPage) &&
     !isDefined(objectMetadataItem)
   ) {

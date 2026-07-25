@@ -10,12 +10,12 @@ import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { Fragment, useContext, useState } from 'react';
 import {
-  H2Title,
   IconMessage,
-  IconRobot,
+  IconSparkle2,
   IconSparkles,
   IconTool,
-} from 'twenty-ui/display';
+} from 'twenty-ui/icon';
+import { H2Title } from 'twenty-ui/typography';
 import { Section } from 'twenty-ui/layout';
 import { UndecoratedLink } from 'twenty-ui/navigation';
 import { SettingsPath } from 'twenty-shared/types';
@@ -121,7 +121,7 @@ export const SettingsAiOverviewTab = () => {
         />
         <UndecoratedLink to={MCP_DEEP_LINK}>
           <SettingsCard
-            Icon={<IconRobot size={theme.icon.size.md} />}
+            Icon={<IconSparkle2 size={theme.icon.size.md} />}
             title={t`Set up MCP`}
           />
         </UndecoratedLink>

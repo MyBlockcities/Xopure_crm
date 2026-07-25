@@ -4,36 +4,38 @@ import { type UniversalFlatRowLevelPermissionPredicate } from 'src/engine/worksp
 
 export const fromRowLevelPermissionPredicateManifestToUniversalFlatRowLevelPermissionPredicate =
   ({
-    predicateManifest,
+    rowLevelPermissionPredicateManifest,
     roleUniversalIdentifier,
     applicationUniversalIdentifier,
     now,
   }: {
-    predicateManifest: RowLevelPermissionPredicateManifest;
+    rowLevelPermissionPredicateManifest: RowLevelPermissionPredicateManifest;
     roleUniversalIdentifier: string;
     applicationUniversalIdentifier: string;
     now: string;
   }): UniversalFlatRowLevelPermissionPredicate => {
     return {
-      universalIdentifier: predicateManifest.universalIdentifier,
+      universalIdentifier:
+        rowLevelPermissionPredicateManifest.universalIdentifier,
       applicationUniversalIdentifier,
       roleUniversalIdentifier,
       objectMetadataUniversalIdentifier:
-        predicateManifest.objectUniversalIdentifier,
+        rowLevelPermissionPredicateManifest.objectUniversalIdentifier,
       fieldMetadataUniversalIdentifier:
-        predicateManifest.fieldUniversalIdentifier,
-      operand: predicateManifest.operand,
-      value: predicateManifest.value ?? null,
-      subFieldName: predicateManifest.subFieldName ?? null,
+        rowLevelPermissionPredicateManifest.fieldUniversalIdentifier,
+      operand: rowLevelPermissionPredicateManifest.operand,
+      value: rowLevelPermissionPredicateManifest.value ?? null,
+      subFieldName: rowLevelPermissionPredicateManifest.subFieldName ?? null,
       workspaceMemberFieldMetadataUniversalIdentifier:
-        predicateManifest.workspaceMemberFieldUniversalIdentifier ?? null,
+        rowLevelPermissionPredicateManifest.workspaceMemberFieldUniversalIdentifier ??
+        null,
       workspaceMemberSubFieldName:
-        predicateManifest.workspaceMemberSubFieldName ?? null,
+        rowLevelPermissionPredicateManifest.workspaceMemberSubFieldName ?? null,
       rowLevelPermissionPredicateGroupUniversalIdentifier:
-        predicateManifest.rowLevelPermissionPredicateGroupUniversalIdentifier ??
+        rowLevelPermissionPredicateManifest.predicateGroupUniversalIdentifier ??
         null,
       positionInRowLevelPermissionPredicateGroup:
-        predicateManifest.positionInRowLevelPermissionPredicateGroup ?? null,
+        rowLevelPermissionPredicateManifest.position ?? null,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,

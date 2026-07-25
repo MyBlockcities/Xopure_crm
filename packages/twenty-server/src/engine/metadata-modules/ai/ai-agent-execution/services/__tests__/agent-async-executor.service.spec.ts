@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { generateText } from 'ai';
 
 import { BillingUsageService } from 'src/engine/core-modules/billing/services/billing-usage.service';
+import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { ToolRegistryService } from 'src/engine/core-modules/tool-provider/services/tool-registry.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { AgentAsyncExecutorService } from 'src/engine/metadata-modules/ai/ai-agent-execution/services/agent-async-executor.service';
@@ -112,6 +113,12 @@ describe('AgentAsyncExecutorService — workflow agent role-scoped tool resoluti
           },
         },
         {
+          provide: MetricsService,
+          useValue: {
+            incrementCounterForEvent: jest.fn(),
+          },
+        },
+        {
           provide: getWorkspaceScopedRepositoryToken(RoleTargetEntity),
           useValue: roleTargetRepository,
         },
@@ -125,7 +132,7 @@ describe('AgentAsyncExecutorService — workflow agent role-scoped tool resoluti
     service = module.get<AgentAsyncExecutorService>(AgentAsyncExecutorService);
   });
 
-  it('passes unionOf: [agentRoleId] when the agent has a role assigned', async () => {
+  it('passes intersectionOf: [agentRoleId] when the agent has a role assigned', async () => {
     roleTargetRepository.findOne.mockResolvedValueOnce({ roleId: agentRoleId });
 
     await service.executeAgent({
@@ -138,7 +145,7 @@ describe('AgentAsyncExecutorService — workflow agent role-scoped tool resoluti
     expect(toolRegistry.getToolsByCategories).toHaveBeenCalledWith(
       expect.objectContaining({
         roleId: agentRoleId,
-        rolePermissionConfig: { unionOf: [agentRoleId] },
+        rolePermissionConfig: { intersectionOf: [agentRoleId] },
         workspaceId,
       }),
       expect.objectContaining({ wrapWithErrorContext: false }),

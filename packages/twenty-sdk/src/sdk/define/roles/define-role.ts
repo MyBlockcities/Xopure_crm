@@ -3,7 +3,7 @@ import { type DefineEntity } from '@/sdk/define/common/types/define-entity.type'
 import { type RoleConfig } from '@/sdk/define/roles/role-config';
 
 export const defineRole: DefineEntity<RoleConfig> = (config) => {
-  const errors: string[] = [];
+  const errors = [];
 
   if (!config.universalIdentifier) {
     errors.push('Role must have a universalIdentifier');
@@ -33,15 +33,31 @@ export const defineRole: DefineEntity<RoleConfig> = (config) => {
     }
   }
 
+  const predicateGroupUniversalIdentifiers = new Set<string>();
+
   if (config.rowLevelPermissionPredicateGroups) {
-    for (const predicateGroup of config.rowLevelPermissionPredicateGroups) {
-      if (!predicateGroup.objectUniversalIdentifier) {
+    for (const group of config.rowLevelPermissionPredicateGroups) {
+      if (!group.universalIdentifier) {
+        errors.push(
+          'Row level permission predicate group must have a universalIdentifier',
+        );
+      } else if (
+        predicateGroupUniversalIdentifiers.has(group.universalIdentifier)
+      ) {
+        errors.push(
+          `Duplicate row level permission predicate group universalIdentifier "${group.universalIdentifier}"`,
+        );
+      } else {
+        predicateGroupUniversalIdentifiers.add(group.universalIdentifier);
+      }
+
+      if (!group.objectUniversalIdentifier) {
         errors.push(
           'Row level permission predicate group must have an objectUniversalIdentifier',
         );
       }
 
-      if (!predicateGroup.logicalOperator) {
+      if (!group.logicalOperator) {
         errors.push(
           'Row level permission predicate group must have a logicalOperator',
         );
@@ -49,8 +65,24 @@ export const defineRole: DefineEntity<RoleConfig> = (config) => {
     }
   }
 
+  const predicateUniversalIdentifiers = new Set<string>();
+
   if (config.rowLevelPermissionPredicates) {
     for (const predicate of config.rowLevelPermissionPredicates) {
+      if (!predicate.universalIdentifier) {
+        errors.push(
+          'Row level permission predicate must have a universalIdentifier',
+        );
+      } else if (
+        predicateUniversalIdentifiers.has(predicate.universalIdentifier)
+      ) {
+        errors.push(
+          `Duplicate row level permission predicate universalIdentifier "${predicate.universalIdentifier}"`,
+        );
+      } else {
+        predicateUniversalIdentifiers.add(predicate.universalIdentifier);
+      }
+
       if (!predicate.objectUniversalIdentifier) {
         errors.push(
           'Row level permission predicate must have an objectUniversalIdentifier',
@@ -65,6 +97,17 @@ export const defineRole: DefineEntity<RoleConfig> = (config) => {
 
       if (!predicate.operand) {
         errors.push('Row level permission predicate must have an operand');
+      }
+
+      if (
+        predicate.predicateGroupUniversalIdentifier &&
+        !predicateGroupUniversalIdentifiers.has(
+          predicate.predicateGroupUniversalIdentifier,
+        )
+      ) {
+        errors.push(
+          `Row level permission predicate references unknown predicate group "${predicate.predicateGroupUniversalIdentifier}"`,
+        );
       }
     }
   }

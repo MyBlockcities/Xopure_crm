@@ -8,10 +8,10 @@ import { FormProvider } from 'react-hook-form';
 import { ClickToActionLink, UndecoratedLink } from 'twenty-ui/navigation';
 
 import { StyledOnboardingContentContainer } from '@/auth/components/StyledOnboardingContentContainer';
+import { OnboardingStepAnimatedItem } from '@/onboarding/components/OnboardingStepAnimatedItem';
 import { SignInUpWithCredentials } from '@/auth/sign-in-up/components/internal/SignInUpWithCredentials';
 import { SignInUpWithGoogle } from '@/auth/sign-in-up/components/internal/SignInUpWithGoogle';
 import { SignInUpWithMicrosoft } from '@/auth/sign-in-up/components/internal/SignInUpWithMicrosoft';
-import { SignInUpWorkspaceCreationForm } from '@/auth/sign-in-up/components/internal/SignInUpWorkspaceCreationForm';
 import { useHandleResetPassword } from '@/auth/sign-in-up/hooks/useHandleResetPassword';
 import { useSignInUpForm } from '@/auth/sign-in-up/hooks/useSignInUpForm';
 import {
@@ -26,18 +26,16 @@ import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomState
 import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { isNonEmptyString } from '@sniptt/guards';
 import { useContext } from 'react';
-import {
-  Avatar,
-  HorizontalSeparator,
-  IconChevronRight,
-  IconPlus,
-} from 'twenty-ui/display';
+import { Avatar } from 'twenty-ui/data-display';
+import { IconChevronRight, IconPlus } from 'twenty-ui/icon';
+import { HorizontalSeparator } from 'twenty-ui/layout';
 import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 import {
   type AvailableWorkspace,
   GetWorkspaceCreationDefaultsDocument,
 } from '~/generated-metadata/graphql';
 import { getWorkspaceUrl } from '~/utils/getWorkspaceUrl';
+import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 
 const StyledWorkspaceContainer = styled.div`
   background-color: ${themeCssVariables.background.secondary};
@@ -159,104 +157,114 @@ export const SignInUpGlobalScopeForm = () => {
     );
   };
 
+  const availableWorkspacesList = [
+    ...availableWorkspaces.availableWorkspacesForSignIn,
+    ...availableWorkspaces.availableWorkspacesForSignUp,
+  ];
+
   return (
     <>
       {signInUpStep === SignInUpStep.WorkspaceSelection && (
         <StyledOnboardingContentContainer>
           <StyledWorkspaceContainer>
-            {[
-              ...availableWorkspaces.availableWorkspacesForSignIn,
-              ...availableWorkspaces.availableWorkspacesForSignUp,
-            ].map((availableWorkspace) => (
-              <UndecoratedLink
+            {availableWorkspacesList.map((availableWorkspace, index) => (
+              <OnboardingStepAnimatedItem
                 key={availableWorkspace.id}
-                to={getAvailableWorkspaceUrl(availableWorkspace)}
+                index={index}
               >
-                <StyledWorkspaceItem>
+                <UndecoratedLink
+                  to={getAvailableWorkspaceUrl(availableWorkspace)}
+                >
+                  <StyledWorkspaceItem>
+                    <StyledWorkspaceContent>
+                      <Avatar
+                        placeholder={availableWorkspace.displayName || ''}
+                        avatarUrl={getAbsoluteImageUrl(
+                          availableWorkspace.logo ?? DEFAULT_WORKSPACE_LOGO,
+                        )}
+                        size="lg"
+                      />
+                      <StyledWorkspaceTextContainer>
+                        <StyledWorkspaceName>
+                          {availableWorkspace.displayName ||
+                            availableWorkspace.id}
+                        </StyledWorkspaceName>
+                        <StyledWorkspaceUrl>
+                          {
+                            new URL(
+                              getWorkspaceUrl(availableWorkspace.workspaceUrls),
+                            ).hostname
+                          }
+                        </StyledWorkspaceUrl>
+                      </StyledWorkspaceTextContainer>
+                      <StyledChevronIcon>
+                        <IconChevronRight size={theme.icon.size.md} />
+                      </StyledChevronIcon>
+                    </StyledWorkspaceContent>
+                  </StyledWorkspaceItem>
+                </UndecoratedLink>
+              </OnboardingStepAnimatedItem>
+            ))}
+            {!isDDLLocked && (
+              <OnboardingStepAnimatedItem
+                index={availableWorkspacesList.length}
+              >
+                <StyledWorkspaceItem
+                  onClick={() =>
+                    setSignInUpStep(SignInUpStep.WorkspaceCreation)
+                  }
+                >
                   <StyledWorkspaceContent>
-                    <Avatar
-                      placeholder={availableWorkspace.displayName || ''}
-                      avatarUrl={
-                        availableWorkspace.logo ?? DEFAULT_WORKSPACE_LOGO
-                      }
-                      size="lg"
-                    />
+                    <StyledWorkspaceLogo>
+                      <IconPlus size={theme.icon.size.lg} />
+                    </StyledWorkspaceLogo>
                     <StyledWorkspaceTextContainer>
-                      <StyledWorkspaceName>
-                        {availableWorkspace.displayName ||
-                          availableWorkspace.id}
-                      </StyledWorkspaceName>
-                      <StyledWorkspaceUrl>
-                        {
-                          new URL(
-                            getWorkspaceUrl(availableWorkspace.workspaceUrls),
-                          ).hostname
-                        }
-                      </StyledWorkspaceUrl>
+                      <StyledWorkspaceName>{t`Create a workspace`}</StyledWorkspaceName>
                     </StyledWorkspaceTextContainer>
                     <StyledChevronIcon>
                       <IconChevronRight size={theme.icon.size.md} />
                     </StyledChevronIcon>
                   </StyledWorkspaceContent>
                 </StyledWorkspaceItem>
-              </UndecoratedLink>
-            ))}
-            {!isDDLLocked && (
-              <StyledWorkspaceItem
-                onClick={() => setSignInUpStep(SignInUpStep.WorkspaceCreation)}
-              >
-                <StyledWorkspaceContent>
-                  <StyledWorkspaceLogo>
-                    <IconPlus size={theme.icon.size.lg} />
-                  </StyledWorkspaceLogo>
-                  <StyledWorkspaceTextContainer>
-                    <StyledWorkspaceName>{t`Create a workspace`}</StyledWorkspaceName>
-                  </StyledWorkspaceTextContainer>
-                  <StyledChevronIcon>
-                    <IconChevronRight size={theme.icon.size.md} />
-                  </StyledChevronIcon>
-                </StyledWorkspaceContent>
-              </StyledWorkspaceItem>
+              </OnboardingStepAnimatedItem>
             )}
           </StyledWorkspaceContainer>
         </StyledOnboardingContentContainer>
       )}
-      {signInUpStep === SignInUpStep.WorkspaceCreation && (
-        <SignInUpWorkspaceCreationForm />
+      {signInUpStep !== SignInUpStep.WorkspaceSelection && (
+        <StyledOnboardingContentContainer>
+          {authProviders.google && (
+            <SignInUpWithGoogle
+              action="list-available-workspaces"
+              isGlobalScope
+            />
+          )}
+          {authProviders.microsoft && (
+            <SignInUpWithMicrosoft
+              action="list-available-workspaces"
+              isGlobalScope
+            />
+          )}
+          {(authProviders.google || authProviders.microsoft) && (
+            <HorizontalSeparator
+              color={themeCssVariables.background.transparent.light}
+            />
+          )}
+          {/* oxlint-disable-next-line react/jsx-props-no-spreading */}
+          <FormProvider {...form}>
+            <SignInUpWithCredentials isGlobalScope />
+          </FormProvider>
+          {signInUpStep === SignInUpStep.Password && (
+            <StyledForgotPasswordLinkContainer>
+              <ClickToActionLink
+                onClick={handleResetPassword(form.getValues('email'))}
+              >
+                <Trans>Forgot your password?</Trans>
+              </ClickToActionLink>
+            </StyledForgotPasswordLinkContainer>
+          )}
+        </StyledOnboardingContentContainer>
       )}
-      {signInUpStep !== SignInUpStep.WorkspaceSelection &&
-        signInUpStep !== SignInUpStep.WorkspaceCreation && (
-          <StyledOnboardingContentContainer>
-            {authProviders.google && (
-              <SignInUpWithGoogle
-                action="list-available-workspaces"
-                isGlobalScope
-              />
-            )}
-            {authProviders.microsoft && (
-              <SignInUpWithMicrosoft
-                action="list-available-workspaces"
-                isGlobalScope
-              />
-            )}
-            {(authProviders.google || authProviders.microsoft) && (
-              <HorizontalSeparator />
-            )}
-            {/* oxlint-disable-next-line react/jsx-props-no-spreading */}
-            <FormProvider {...form}>
-              <SignInUpWithCredentials isGlobalScope />
-            </FormProvider>
-            {signInUpStep === SignInUpStep.Password && (
-              <StyledForgotPasswordLinkContainer>
-                <ClickToActionLink
-                  onClick={handleResetPassword(form.getValues('email'))}
-                >
-                  <Trans>Forgot your password?</Trans>
-                </ClickToActionLink>
-              </StyledForgotPasswordLinkContainer>
-            )}
-          </StyledOnboardingContentContainer>
-        )}
     </>
   );
 };

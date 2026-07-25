@@ -39,10 +39,45 @@ describe('finalizeDanglingToolParts', () => {
     expect(finalizeDanglingToolParts([part])).toEqual([part]);
   });
 
-  it('leaves an errored tool part untouched', () => {
+  it('leaves an errored tool part with an input untouched', () => {
     const part = buildToolPart('output-error', { errorText: 'boom' });
 
     expect(finalizeDanglingToolParts([part])).toEqual([part]);
+  });
+
+  it('backfills an empty input for an output-error part missing its input', () => {
+    const part = buildToolPart('output-error', {
+      input: undefined,
+      errorText: 'Invalid input for tool execute_tool: Type validation failed',
+    });
+
+    expect(finalizeDanglingToolParts([part])).toEqual([
+      {
+        type: 'tool-execute_tool',
+        toolCallId: 'call_1',
+        input: {},
+        state: 'output-error',
+        errorText:
+          'Invalid input for tool execute_tool: Type validation failed',
+      },
+    ]);
+  });
+
+  it('preserves the existing error message when backfilling input', () => {
+    const part = buildToolPart('output-error', {
+      input: null,
+      errorText: 'original validation error',
+    });
+
+    expect(finalizeDanglingToolParts([part])).toEqual([
+      {
+        type: 'tool-execute_tool',
+        toolCallId: 'call_1',
+        input: {},
+        state: 'output-error',
+        errorText: 'original validation error',
+      },
+    ]);
   });
 
   it('drops an input-streaming tool part with incomplete arguments', () => {
@@ -65,6 +100,40 @@ describe('finalizeDanglingToolParts', () => {
     ] as ExtendedUIMessagePart[];
 
     expect(finalizeDanglingToolParts(parts)).toEqual(parts);
+  });
+
+  it('drops a duplicate dynamic-tool part sharing a tool call id with a typed part', () => {
+    const typed = buildToolPart('output-error', {
+      type: 'tool-search_output',
+      toolCallId: 'call_dup',
+      errorText: 'boom',
+    });
+    const dynamicDuplicate = buildToolPart('output-error', {
+      type: 'dynamic-tool',
+      toolName: 'search_output',
+      toolCallId: 'call_dup',
+      errorText: 'boom',
+    });
+
+    expect(finalizeDanglingToolParts([typed, dynamicDuplicate])).toEqual([
+      typed,
+    ]);
+  });
+
+  it('keeps the first part when a tool call id is duplicated across states', () => {
+    const first = buildToolPart('output-error', {
+      type: 'tool-execute_tool',
+      toolCallId: 'call_dup',
+      errorText: 'boom',
+    });
+    const duplicate = buildToolPart('output-error', {
+      type: 'dynamic-tool',
+      toolName: 'execute_tool',
+      toolCallId: 'call_dup',
+      errorText: 'boom',
+    });
+
+    expect(finalizeDanglingToolParts([first, duplicate])).toEqual([first]);
   });
 
   it('finalizes only the dangling parts in a mixed batch', () => {

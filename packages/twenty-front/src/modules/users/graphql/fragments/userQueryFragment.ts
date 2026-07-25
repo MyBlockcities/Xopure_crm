@@ -52,6 +52,7 @@ export const USER_QUERY_FRAGMENT = gql`
       allowImpersonation
       activationStatus
       isPublicInviteLinkEnabled
+      workspaceDiscoverability
       isGoogleAuthEnabled
       isMicrosoftAuthEnabled
       isPasswordAuthEnabled
@@ -70,6 +71,7 @@ export const USER_QUERY_FRAGMENT = gql`
         name
         universalIdentifier
         logo
+        logoUrl
       }
       isCustomDomainEnabled
       workspaceUrls {
@@ -79,9 +81,12 @@ export const USER_QUERY_FRAGMENT = gql`
         key
         value
       }
-      metadataVersion
       currentBillingSubscription {
         ...CurrentBillingSubscriptionFragment
+      }
+      billingCustomer {
+        id
+        hasPaymentMethod
       }
       billingSubscriptions {
         ...BillingSubscriptionFragment

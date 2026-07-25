@@ -3,7 +3,7 @@ import { getLinkToShowPage } from '@/object-metadata/utils/getLinkToShowPage';
 import { useAtomFamilySelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilySelectorValue';
 import { t } from '@lingui/core/macro';
 import { isNonEmptyString } from '@sniptt/guards';
-import { AvatarOrIcon, ChipVariant, LinkChip } from 'twenty-ui/components';
+import { AvatarOrIcon, ChipVariant, LinkChip } from 'twenty-ui/data-display';
 
 type RecordLinkProps = {
   objectNameSingular: string;
@@ -48,22 +48,4 @@ export const RecordLink = ({
       }
     />
   );
-};
-
-export const RECORD_REFERENCE_REGEX =
-  /\[\[(?:record:)?([a-zA-Z]+):([a-f0-9-]+):([^\]]+)\]\]/g;
-
-export const parseRecordReference = (match: string) => {
-  const regex = /\[\[(?:record:)?([a-zA-Z]+):([a-f0-9-]+):([^\]]+)\]\]/;
-  const result = regex.exec(match);
-
-  if (!result) {
-    return null;
-  }
-
-  return {
-    objectNameSingular: result[1],
-    recordId: result[2],
-    displayName: result[3],
-  };
 };

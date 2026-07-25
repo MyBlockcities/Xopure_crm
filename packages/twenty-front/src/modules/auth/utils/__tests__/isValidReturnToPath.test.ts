@@ -24,7 +24,7 @@ describe('isValidReturnToPath', () => {
   });
 
   it('should return false for onboarding paths', () => {
-    expect(isValidReturnToPath('/create/workspace')).toBe(false);
+    expect(isValidReturnToPath('/workspace-activation')).toBe(false);
     expect(isValidReturnToPath('/create/profile')).toBe(false);
   });
 
@@ -35,6 +35,10 @@ describe('isValidReturnToPath', () => {
 
   it('should return false for reset-password paths', () => {
     expect(isValidReturnToPath('/reset-password')).toBe(false);
+  });
+
+  it('should return true for the workspace setup path', () => {
+    expect(isValidReturnToPath('/workspace-setup')).toBe(true);
   });
 
   it('should return true for valid application paths', () => {

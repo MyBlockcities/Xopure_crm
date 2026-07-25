@@ -181,7 +181,7 @@ export class WorkspaceRolesPermissionsCacheService extends WorkspaceCacheProvide
             const getPermissionValue = (
               overrideValue: boolean | undefined,
               defaultValue: boolean,
-            ) => (isSystem ? true : (overrideValue ?? defaultValue));
+            ) => overrideValue ?? (isSystem ? true : defaultValue);
 
             canRead = getPermissionValue(
               objectRecordPermissionsOverride?.canReadObjectRecords,
@@ -294,7 +294,7 @@ export class WorkspaceRolesPermissionsCacheService extends WorkspaceCacheProvide
     // cursor (@WasIntroducedInUpgrade), so fall back to the legacy `flag` column.
     return (
       rolePermissionFlag.permissionFlag?.universalIdentifier ??
-      SystemPermissionFlag[rolePermissionFlag.flag]
+      SystemPermissionFlag[rolePermissionFlag.flag as PermissionFlagType]
     );
   }
 }

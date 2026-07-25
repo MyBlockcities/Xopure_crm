@@ -4,29 +4,29 @@ import { type UniversalFlatRowLevelPermissionPredicateGroup } from 'src/engine/w
 
 export const fromRowLevelPermissionPredicateGroupManifestToUniversalFlatRowLevelPermissionPredicateGroup =
   ({
-    predicateGroupManifest,
+    rowLevelPermissionPredicateGroupManifest,
     roleUniversalIdentifier,
     applicationUniversalIdentifier,
     now,
   }: {
-    predicateGroupManifest: RowLevelPermissionPredicateGroupManifest;
+    rowLevelPermissionPredicateGroupManifest: RowLevelPermissionPredicateGroupManifest;
     roleUniversalIdentifier: string;
     applicationUniversalIdentifier: string;
     now: string;
   }): UniversalFlatRowLevelPermissionPredicateGroup => {
     return {
-      universalIdentifier: predicateGroupManifest.universalIdentifier,
+      universalIdentifier:
+        rowLevelPermissionPredicateGroupManifest.universalIdentifier,
       applicationUniversalIdentifier,
       roleUniversalIdentifier,
       objectMetadataUniversalIdentifier:
-        predicateGroupManifest.objectUniversalIdentifier,
+        rowLevelPermissionPredicateGroupManifest.objectUniversalIdentifier,
+      logicalOperator: rowLevelPermissionPredicateGroupManifest.logicalOperator,
       parentRowLevelPermissionPredicateGroupUniversalIdentifier:
-        predicateGroupManifest.parentRowLevelPermissionPredicateGroupUniversalIdentifier ??
+        rowLevelPermissionPredicateGroupManifest.parentPredicateGroupUniversalIdentifier ??
         null,
-      logicalOperator: predicateGroupManifest.logicalOperator,
       positionInRowLevelPermissionPredicateGroup:
-        predicateGroupManifest.positionInRowLevelPermissionPredicateGroup ??
-        null,
+        rowLevelPermissionPredicateGroupManifest.position ?? null,
       childRowLevelPermissionPredicateGroupUniversalIdentifiers: [],
       rowLevelPermissionPredicateUniversalIdentifiers: [],
       createdAt: now,

@@ -21,7 +21,9 @@ export type SubdomainFieldStatus =
 
 const AVAILABILITY_CHECK_DEBOUNCE_MS = 400;
 
-export const useWorkspaceSubdomainField = () => {
+export const useWorkspaceSubdomainField = ({
+  isSubdomainEnabled = true,
+}: { isSubdomainEnabled?: boolean } = {}) => {
   const apolloClient = useApolloClient();
   const subdomainSchema = useMemo(() => getSubdomainValidationSchema(), []);
 
@@ -44,7 +46,7 @@ export const useWorkspaceSubdomainField = () => {
     seededSubdomain !== '' ? 'available' : 'idle',
   );
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
-  const [suggestion, setSuggestion] = useState<string | undefined>();
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const [checkAvailabilityQuery] = useLazyQuery(
     CheckWorkspaceSubdomainAvailabilityDocument,
@@ -71,27 +73,27 @@ export const useWorkspaceSubdomainField = () => {
         setSubdomain(result.suggestedSubdomain);
         setStatus('available');
         setErrorMessage(undefined);
-        setSuggestion(undefined);
+        setSuggestions([]);
         return;
       }
 
       if (!result.isValid) {
         setStatus('invalid');
-        setSuggestion(undefined);
+        setSuggestions([]);
         return;
       }
 
       if (result.available) {
         setStatus('available');
-        setSuggestion(undefined);
+        setSuggestions([]);
         return;
       }
 
       setStatus('unavailable');
-      setSuggestion(result.suggestedSubdomain);
+      setSuggestions(result.suggestedSubdomains);
     } catch {
       setStatus('error');
-      setSuggestion(undefined);
+      setSuggestions([]);
     }
   };
 
@@ -107,7 +109,7 @@ export const useWorkspaceSubdomainField = () => {
       debouncedAvailabilityCheck.cancel();
       setSubdomain('');
       setStatus('idle');
-      setSuggestion(undefined);
+      setSuggestions([]);
       return;
     }
 
@@ -118,7 +120,7 @@ export const useWorkspaceSubdomainField = () => {
   const handleWorkspaceNameChange = (name: string) => {
     setWorkspaceName(name);
 
-    if (isManuallyEdited) {
+    if (!isSubdomainEnabled || isManuallyEdited) {
       return;
     }
 
@@ -132,7 +134,7 @@ export const useWorkspaceSubdomainField = () => {
       setIsManuallyEdited(false);
       setSubdomain('');
       setErrorMessage(undefined);
-      setSuggestion(undefined);
+      setSuggestions([]);
       autofillFromWorkspaceName(workspaceName);
       return;
     }
@@ -146,7 +148,7 @@ export const useWorkspaceSubdomainField = () => {
       debouncedAvailabilityCheck.cancel();
       setStatus('invalid');
       setErrorMessage(validation.error.issues[0].message);
-      setSuggestion(undefined);
+      setSuggestions([]);
       return;
     }
 
@@ -155,17 +157,13 @@ export const useWorkspaceSubdomainField = () => {
     debouncedAvailabilityCheck(normalized, { adoptSuggestion: false });
   };
 
-  const applySuggestion = () => {
-    if (!isDefined(suggestion)) {
-      return;
-    }
-
+  const applySuggestionValue = (value: string) => {
     setIsManuallyEdited(true);
-    setSubdomain(suggestion);
+    setSubdomain(value);
     setStatus('checking');
     setErrorMessage(undefined);
-    setSuggestion(undefined);
-    debouncedAvailabilityCheck(suggestion, { adoptSuggestion: false });
+    setSuggestions([]);
+    debouncedAvailabilityCheck(value, { adoptSuggestion: false });
   };
 
   return {
@@ -173,10 +171,10 @@ export const useWorkspaceSubdomainField = () => {
     subdomain,
     status,
     errorMessage,
-    suggestion,
+    suggestions,
     isAvailable: status === 'available',
     handleWorkspaceNameChange,
     handleSubdomainChange,
-    applySuggestion,
+    applySuggestionValue,
   };
 };

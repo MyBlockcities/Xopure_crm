@@ -32,7 +32,8 @@
     "test:integration:watch": "vitest -c vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "pg": "^8.12.0"
+    "pg": "^8.12.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/pg": "^8.15.6",

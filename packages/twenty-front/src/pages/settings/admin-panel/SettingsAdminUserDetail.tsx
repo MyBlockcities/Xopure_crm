@@ -27,14 +27,15 @@ import { DEFAULT_WORKSPACE_LOGO } from '@/ui/navigation/navigation-drawer/consta
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import {
-  H2Title,
   IconCalendar,
   IconEyeShare,
   IconId,
   IconLock,
   IconMail,
   IconUser,
-} from 'twenty-ui/display';
+} from 'twenty-ui/icon';
+import { Avatar } from 'twenty-ui/data-display';
+import { H2Title } from 'twenty-ui/typography';
 import { Button } from 'twenty-ui/input';
 import { Section } from 'twenty-ui/layout';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
@@ -140,6 +141,15 @@ export const SettingsAdminUserDetail = () => {
 
   return (
     <SettingsPageLayout
+      title={displayName}
+      icon={
+        <Avatar
+          placeholder={displayName}
+          placeholderColorSeed={user?.id}
+          size="md"
+          type="rounded"
+        />
+      }
       links={[
         {
           children: t`Other`,

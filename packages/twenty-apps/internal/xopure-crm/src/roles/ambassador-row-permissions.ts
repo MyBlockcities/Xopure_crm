@@ -1,6 +1,7 @@
 import {
   STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS,
 } from 'twenty-sdk/define';
+import { v5 as uuidv5 } from 'uuid';
 
 import { AMBASSADOR_MANAGER_WORKSPACE_MEMBER_FIELD_ID } from '../fields/ambassador-manager-workspace-member.field';
 import { AMBASSADOR_WORKSPACE_MEMBER_FIELD_ID } from '../fields/ambassador-workspace-member.field';
@@ -29,12 +30,13 @@ import { XOPURE_ORDER_OBJECT_ID } from '../objects/xopure-order.object';
 // Local structural types — twenty-sdk/define does not export row-level permission types.
 // When the SDK catches up, these should be replaced with the canonical imports.
 type RowLevelPermissionPredicateConfig = {
+  universalIdentifier: string;
   objectUniversalIdentifier: string;
   fieldUniversalIdentifier: string;
   operand: string;
   value: { isCurrentWorkspaceMemberSelected: boolean; selectedRecordIds: string[] };
-  rowLevelPermissionPredicateGroupUniversalIdentifier?: string;
-  positionInRowLevelPermissionPredicateGroup?: number;
+  predicateGroupUniversalIdentifier?: string;
+  position?: number;
 };
 
 type RowLevelPermissionPredicateGroupConfig = {
@@ -72,6 +74,50 @@ const currentWorkspaceMemberRelationValue = {
 
 const ROW_LEVEL_PERMISSION_PREDICATE_OPERAND_IS = 'IS';
 const ROW_LEVEL_PERMISSION_PREDICATE_GROUP_LOGICAL_OPERATOR_OR = 'OR';
+
+export const AMBASSADOR_REP_ROLE_ID = 'eaced098-426a-5e90-8a8a-0134cce1a439';
+export const AMBASSADOR_MANAGER_ROLE_ID =
+  'f9d06652-db4d-51d0-84ff-b4e233934ed4';
+
+// Namespace and part ordering are fixed by the SDK's role-child identifier
+// scheme. Changing either re-keys every synced predicate, so treat both as
+// frozen once a role has been deployed.
+const ROLE_UNIVERSAL_IDENTIFIER_NAMESPACE =
+  'b403ec59-4d80-4f22-85e6-717a192dc9cb';
+
+const buildPredicateUniversalIdentifier = ({
+  roleUniversalIdentifier,
+  objectUniversalIdentifier,
+  fieldUniversalIdentifier,
+  operand,
+  value,
+  predicateGroupUniversalIdentifier,
+  position,
+}: {
+  roleUniversalIdentifier: string;
+  objectUniversalIdentifier: string;
+  fieldUniversalIdentifier: string;
+  operand: string;
+  value: unknown;
+  predicateGroupUniversalIdentifier?: string;
+  position?: number;
+}): string =>
+  uuidv5(
+    [
+      roleUniversalIdentifier,
+      'row-level-permission-predicate',
+      objectUniversalIdentifier,
+      fieldUniversalIdentifier,
+      operand,
+      JSON.stringify(value ?? null),
+      '',
+      '',
+      '',
+      predicateGroupUniversalIdentifier ?? '',
+      String(position ?? ''),
+    ].join(':'),
+    ROLE_UNIVERSAL_IDENTIFIER_NAMESPACE,
+  );
 
 const AMBASSADOR_RESTRICTED_OBJECTS: AmbassadorRestrictedObject[] = [
   {
@@ -169,28 +215,40 @@ export const AMBASSADOR_OWNERSHIP_FIELD_PERMISSIONS: FieldPermissionConfig[] =
   );
 
 const buildCurrentWorkspaceMemberPredicate = ({
+  roleUniversalIdentifier,
   objectUniversalIdentifier,
   fieldUniversalIdentifier,
-  rowLevelPermissionPredicateGroupUniversalIdentifier,
-  positionInRowLevelPermissionPredicateGroup,
+  predicateGroupUniversalIdentifier,
+  position,
 }: {
+  roleUniversalIdentifier: string;
   objectUniversalIdentifier: string;
   fieldUniversalIdentifier: string;
-  rowLevelPermissionPredicateGroupUniversalIdentifier?: string;
-  positionInRowLevelPermissionPredicateGroup?: number;
+  predicateGroupUniversalIdentifier?: string;
+  position?: number;
 }): RowLevelPermissionPredicateConfig => ({
+  universalIdentifier: buildPredicateUniversalIdentifier({
+    roleUniversalIdentifier,
+    objectUniversalIdentifier,
+    fieldUniversalIdentifier,
+    operand: ROW_LEVEL_PERMISSION_PREDICATE_OPERAND_IS,
+    value: currentWorkspaceMemberRelationValue,
+    predicateGroupUniversalIdentifier,
+    position,
+  }),
   objectUniversalIdentifier,
   fieldUniversalIdentifier,
   operand: ROW_LEVEL_PERMISSION_PREDICATE_OPERAND_IS,
   value: currentWorkspaceMemberRelationValue,
-  rowLevelPermissionPredicateGroupUniversalIdentifier,
-  positionInRowLevelPermissionPredicateGroup,
+  predicateGroupUniversalIdentifier,
+  position,
 });
 
 export const AMBASSADOR_REP_ROW_LEVEL_PERMISSION_PREDICATES: RowLevelPermissionPredicateConfig[] =
   AMBASSADOR_RESTRICTED_OBJECTS.map(
     ({ objectUniversalIdentifier, assignedFieldUniversalIdentifier }) =>
       buildCurrentWorkspaceMemberPredicate({
+        roleUniversalIdentifier: AMBASSADOR_REP_ROLE_ID,
         objectUniversalIdentifier,
         fieldUniversalIdentifier: assignedFieldUniversalIdentifier,
       }),
@@ -217,18 +275,20 @@ export const AMBASSADOR_MANAGER_ROW_LEVEL_PERMISSION_PREDICATES: RowLevelPermiss
       managerPredicateGroupUniversalIdentifier,
     }) => [
       buildCurrentWorkspaceMemberPredicate({
+        roleUniversalIdentifier: AMBASSADOR_MANAGER_ROLE_ID,
         objectUniversalIdentifier,
         fieldUniversalIdentifier: assignedFieldUniversalIdentifier,
-        rowLevelPermissionPredicateGroupUniversalIdentifier:
+        predicateGroupUniversalIdentifier:
           managerPredicateGroupUniversalIdentifier,
-        positionInRowLevelPermissionPredicateGroup: 0,
+        position: 0,
       }),
       buildCurrentWorkspaceMemberPredicate({
+        roleUniversalIdentifier: AMBASSADOR_MANAGER_ROLE_ID,
         objectUniversalIdentifier,
         fieldUniversalIdentifier: supervisorFieldUniversalIdentifier,
-        rowLevelPermissionPredicateGroupUniversalIdentifier:
+        predicateGroupUniversalIdentifier:
           managerPredicateGroupUniversalIdentifier,
-        positionInRowLevelPermissionPredicateGroup: 1,
+        position: 1,
       }),
     ],
   );
