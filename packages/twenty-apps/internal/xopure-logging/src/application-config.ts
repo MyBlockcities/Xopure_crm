@@ -1,5 +1,12 @@
 import { defineApplication } from 'twenty-sdk/define';
-import { APPLICATION_ID, DEFAULT_ROLE_ID, GRAFANA_URL_VAR_ID, GRAFANA_API_KEY_VAR_ID, LOKI_UID_VAR_ID, TEMPO_UID_VAR_ID } from 'src/constants/universal-identifiers';
+import {
+  APPLICATION_ID,
+  DEFAULT_ROLE_ID,
+  GRAFANA_API_KEY_VAR_ID,
+  GRAFANA_URL_VAR_ID,
+  LOKI_UID_VAR_ID,
+  TEMPO_UID_VAR_ID,
+} from './constants/universal-identifiers';
 
 export default defineApplication({
   universalIdentifier: APPLICATION_ID,

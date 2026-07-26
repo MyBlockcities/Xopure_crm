@@ -1,6 +1,6 @@
 import { defineNavigationMenuItem } from 'twenty-sdk/define';
 import { NavigationMenuItemType } from 'twenty-sdk/define';
-import { NAVIGATION_MENU_ITEM_ID } from 'src/constants/universal-identifiers';
+import { NAVIGATION_MENU_ITEM_ID } from '../constants/universal-identifiers';
 
 export default defineNavigationMenuItem({
   universalIdentifier: NAVIGATION_MENU_ITEM_ID,

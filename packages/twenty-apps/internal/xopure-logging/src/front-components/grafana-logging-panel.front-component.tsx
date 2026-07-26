@@ -1,7 +1,7 @@
 import { defineFrontComponent } from 'twenty-sdk/define';
 import { getApplicationVariable, useRecordId, useUserId } from 'twenty-sdk/front-component';
-import { GRAFANA_PANEL_COMPONENT_ID } from 'src/constants/universal-identifiers';
-import { buildGrafanaIframeUrl } from 'src/utils/build-grafana-iframe-url';
+import { GRAFANA_PANEL_COMPONENT_ID } from '../constants/universal-identifiers';
+import { buildGrafanaIframeUrl } from '../utils/build-grafana-iframe-url';
 
 const MAX_RECORD_VAR_LENGTH = 64;
 const MAX_USER_VAR_LENGTH = 64;
@@ -31,9 +31,6 @@ export const GrafanaLoggingPanel = () => {
     grafanaUrl,
     recordVar: safeRecordVar,
     userVar: safeUserVar,
-    proxyUrl: '/xopure-logging/loki/query',
-    limit: 100,
-    headers: { 'Content-Type': 'application/json' },
   });
 
   return (
