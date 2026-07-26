@@ -23,6 +23,18 @@ import fs from 'node:fs';
 import process from 'node:process';
 import pg from 'pg';
 
+// Pure, unit-tested comp-plan logic. Run `npm test` in this directory.
+import {
+  centsToAmountMicros,
+  computeTreeRollups,
+  findAttentionNeeded,
+  mapAccountType,
+  mapAffiliateRank,
+  mapAmbassadorStatus,
+  normalizeSelectValue,
+  rankDisplayName,
+} from './lib/comp-plan.mjs';
+
 const { Client } = pg;
 
 const loadLocalEnv = () => {
@@ -174,14 +186,6 @@ const quoteIdent = (value) => {
 
 const tableRef = (tableName) => `${quoteIdent(WS)}.${quoteIdent(tableName)}`;
 
-const centsToAmountMicros = (cents) => {
-  if (cents === null || cents === undefined || Number.isNaN(Number(cents))) {
-    return null;
-  }
-
-  return Math.round(Number(cents) * 10_000);
-};
-
 const normalizeEmail = (email) => String(email ?? '').trim().toLowerCase();
 
 const addDaysIso = (isoDate, days) => {
@@ -239,13 +243,6 @@ const orderCvCents = (order) =>
     ? 0
     : Number(order.cv_amount);
 
-const normalizeSelectValue = (value) =>
-  String(value ?? '')
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-
 const mapAffiliateStatus = (status) => {
   const normalized = normalizeSelectValue(status);
 
@@ -265,65 +262,8 @@ const mapAffiliatePath = (accountType) => {
   return 'STANDARD';
 };
 
-// COMP_PLAN_LAW §1.5 — the internal rank keys are PERMANENT; only display names
-// change. The Twenty SELECT stores the internal key as its `value` and carries
-// the spec display name as its `label`, so raw keys never reach the UI (§2.1).
-//
-//   internal key | display name
-//   -------------|-------------
-//   customer     | Customer
-//   starter      | Ambassador
-//   builder      | Partner
-//   influencer   | Influencer
-//   promoter     | Leader      <-- offset hazard
-//   leader       | Executive   <-- offset hazard
-//   director     | Director
-//   icon         | Visionary
-const AFFILIATE_RANK_MAP = {
-  // canonical Supabase keys
-  CUSTOMER: 'CUSTOMER',
-  STARTER: 'STARTER',
-  BUILDER: 'BUILDER',
-  INFLUENCER: 'INFLUENCER',
-  PROMOTER: 'PROMOTER',
-  LEADER: 'LEADER',
-  DIRECTOR: 'DIRECTOR',
-  ICON: 'ICON',
-  // legacy / historical aliases observed in the data
-  L0_CUSTOMER: 'CUSTOMER',
-  L1_STARTER: 'STARTER',
-  AFFILIATE: 'STARTER',
-  ACTIVE_AFFILIATE: 'STARTER',
-  L2_BUILDER: 'BUILDER',
-  L3_PROMOTER: 'PROMOTER',
-  L4_LEADER: 'LEADER',
-  L5_DIRECTOR: 'DIRECTOR',
-  L6_ICON: 'ICON',
-};
-
-const unmappedRanks = new Set();
-
-// Guide §2.6: a value the CRM cannot map must be surfaced, never silently
-// dropped. The previous implementation defaulted unknown ranks to the starter
-// tier, which silently mis-displayed every `influencer` ambassador.
-const mapAffiliateRank = (rank) => {
-  const normalized = normalizeSelectValue(rank);
-
-  if (!normalized) return 'STARTER';
-
-  const mapped = AFFILIATE_RANK_MAP[normalized];
-
-  if (!mapped) {
-    unmappedRanks.add(normalized);
-    throw new Error(
-      `Unmapped affiliate rank "${rank}" (normalized: "${normalized}"). ` +
-        `Add it to AFFILIATE_RANK_MAP — never let a rank silently fall back ` +
-        `(COMP_PLAN_LAW §2.6).`,
-    );
-  }
-
-  return mapped;
-};
+// mapAffiliateRank / rankDisplayName now live in ./lib/comp-plan.mjs so they
+// can be unit tested without a database. See comp-plan.test.mjs.
 
 const mapOnboardingStage = (status) => {
   const mappedStatus = mapAffiliateStatus(status);
