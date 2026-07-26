@@ -32,7 +32,6 @@ import {
   mapAffiliateRank,
   mapAmbassadorStatus,
   normalizeSelectValue,
-  rankDisplayName,
 } from './lib/comp-plan.mjs';
 
 const { Client } = pg;
@@ -107,11 +106,21 @@ const WS =
 const DRY_RUN = process.env.DRY_RUN === '1';
 const IMPORTED_BY_NAME = process.env.IMPORTED_BY_NAME ?? 'Supabase Sync';
 const DEFAULT_CURRENCY_CODE = process.env.TWENTY_DEFAULT_CURRENCY_CODE ?? 'USD';
-const PRODUCT_TABLE = '_product';
-const PERIOD_TABLE = '_period';
-const AMBASSADOR_TABLE = '_ambassador';
-const CUSTOMER_TABLE = '_customer';
-const ORDER_TABLE = '_xoOrder';
+// Workspace table names for the XO Pure Apps SDK objects. The Apps SDK is the
+// single source of truth for schema (decision 2026-07-25); the older
+// setup-custom-objects spec.mjs object set (_product/_ambassador/_customer/
+// _xoOrder/_period) is being retired.
+//
+// Override per-table via env if a workspace was provisioned differently.
+const PRODUCT_TABLE = process.env.TWENTY_PRODUCT_TABLE ?? '_xopureProduct';
+const AMBASSADOR_TABLE =
+  process.env.TWENTY_AMBASSADOR_TABLE ?? '_xopureAmbassador';
+const CUSTOMER_TABLE = process.env.TWENTY_CUSTOMER_TABLE ?? '_xopureCustomer';
+const ORDER_TABLE = process.env.TWENTY_ORDER_TABLE ?? '_xopureOrder';
+
+// The Apps SDK object set has no Period object. Period sync is disabled unless
+// a table is explicitly supplied.
+const PERIOD_TABLE = process.env.TWENTY_PERIOD_TABLE ?? null;
 
 if (!TWENTY_PG_URL || !WS) {
   console.error(
@@ -243,38 +252,11 @@ const orderCvCents = (order) =>
     ? 0
     : Number(order.cv_amount);
 
-const mapAffiliateStatus = (status) => {
-  const normalized = normalizeSelectValue(status);
-
-  if (normalized === 'ACTIVE' || normalized === 'APPROVED') return 'ACTIVE';
-  if (normalized === 'SUSPENDED' || normalized === 'BLOCKED') return 'SUSPENDED';
-  if (normalized === 'INACTIVE' || normalized === 'DISABLED') return 'INACTIVE';
-
-  return 'PENDING';
-};
-
-const mapAffiliatePath = (accountType) => {
-  const normalized = normalizeSelectValue(accountType);
-
-  if (normalized === 'ELITE') return 'ELITE';
-  if (normalized === 'REFERRAL') return 'REFERRAL';
-
-  return 'STANDARD';
-};
-
-// mapAffiliateRank / rankDisplayName now live in ./lib/comp-plan.mjs so they
-// can be unit tested without a database. See comp-plan.test.mjs.
-
-const mapOnboardingStage = (status) => {
-  const mappedStatus = mapAffiliateStatus(status);
-
-  if (mappedStatus === 'ACTIVE') return 'ACTIVE';
-  if (mappedStatus === 'INACTIVE' || mappedStatus === 'SUSPENDED') {
-    return 'DORMANT';
-  }
-
-  return 'INVITED';
-};
+// Rank/status/account-type mapping lives in ./lib/comp-plan.mjs so it can be
+// unit tested without a database. See comp-plan.test.mjs.
+//
+// The old mapAffiliateStatus / mapAffiliatePath / mapOnboardingStage helpers
+// targeted the retired spec.mjs ambassador schema and have been removed.
 
 const mapProductCategory = (product) => {
   const text = normalizeSelectValue(
@@ -596,9 +578,13 @@ const upsertSyncMap = async ({
 const listAffiliates = async () => {
   if (supabasePg) {
     const { rows } = await supabasePg.query(
-      `select id, email, name, tracking_code, parent_id, status, account_type,
-              active_customer_count, personal_volume_cents, team_volume_cents,
-              career_rank, paid_as_rank, rank, created_at
+      `select id, email, name, tracking_code, custom_slug, parent_id, status,
+              account_type, active_customer_count, enrollment_count,
+              personal_volume_cents, team_volume_cents,
+              monthly_pv_cv_cents, monthly_gv_cv_cents,
+              needs_sponsor_review, reparent_locked,
+              career_rank, paid_as_rank, rank,
+              converted_to_ambassador_at, created_at
          from public.affiliates
         order by created_at`,
     );
@@ -608,7 +594,7 @@ const listAffiliates = async () => {
   return await supabaseRest('affiliates', {
     params: {
       select:
-        'id,email,name,tracking_code,parent_id,status,account_type,active_customer_count,personal_volume_cents,team_volume_cents,career_rank,paid_as_rank,rank,created_at',
+        'id,email,name,tracking_code,custom_slug,parent_id,status,account_type,active_customer_count,enrollment_count,personal_volume_cents,team_volume_cents,monthly_pv_cv_cents,monthly_gv_cv_cents,needs_sponsor_review,reparent_locked,career_rank,paid_as_rank,rank,converted_to_ambassador_at,created_at',
       order: 'created_at.asc',
     },
   });
@@ -909,54 +895,87 @@ const upsertPerson = async ({
 };
 
 const ambassadorTableRemediation =
-  'Run `PHASE=1 node scripts/xopure/setup-custom-objects/index.mjs` against crm.xopure.com first.';
+  'Install the XO Pure CRM app (packages/twenty-apps/internal/xopure-crm) into the workspace first, so the xopureAmbassador object exists.';
+
+// Rollups (directReferralCount / downlineSize / treeDepth) are computed once
+// for the whole affiliate set before the per-row pass. See computeTreeRollups.
+let ambassadorRollups = new Map();
+
+const EMPTY_ROLLUP = Object.freeze({
+  directReferralCount: 0,
+  downlineSize: 0,
+  treeDepth: 0,
+});
 
 const buildAmbassadorPayload = (row, personId) => {
   const { first, last } = splitName(row.name);
-  const status = mapAffiliateStatus(row.status);
+  const rollup = ambassadorRollups.get(String(row.id)) ?? EMPTY_ROLLUP;
 
   return {
-    supabaseId: row.id,
-    ambassadorCode: row.tracking_code,
+    supabaseAmbassadorId: String(row.id),
     firstName: first,
     lastName: last,
     email: row.email,
-    status,
-    path: mapAffiliatePath(row.account_type),
-    enrolledAt: row.ambassador_conversion_date ?? row.created_at,
-    qualifiedRank: mapAffiliateRank(row.career_rank ?? row.rank),
+    status: mapAmbassadorStatus(row.status),
+    accountType: mapAccountType(row.account_type),
+    // Rank is never retro-revoked (LAW §1.6), so career_rank is the ceiling.
+    careerRank: mapAffiliateRank(row.career_rank ?? row.rank),
     paidAsRank: mapAffiliateRank(row.paid_as_rank ?? row.career_rank ?? row.rank),
-    activeCustomerCount: row.active_customer_count ?? 0,
-    customerCVMicros: centsToAmountMicros(row.personal_volume_cents),
-    groupCVMicros: centsToAmountMicros(row.team_volume_cents),
-    onboardingStage: mapOnboardingStage(row.status),
+    referralCode: row.tracking_code ?? null,
+    trackingCode: row.tracking_code ?? null,
+    customSlug: row.custom_slug ?? null,
+    activeCustomerCount: Number(row.active_customer_count ?? 0),
+    enrollmentCount: Number(row.enrollment_count ?? 0),
+    personalVolumeMicros: centsToAmountMicros(row.personal_volume_cents),
+    teamVolumeMicros: centsToAmountMicros(row.team_volume_cents),
+    monthlyPvCvMicros: centsToAmountMicros(row.monthly_pv_cv_cents),
+    monthlyGvCvMicros: centsToAmountMicros(row.monthly_gv_cv_cents),
+    needsSponsorReview: row.needs_sponsor_review === true,
+    reparentLocked: row.reparent_locked === true,
+    directReferralCount: rollup.directReferralCount,
+    downlineSize: rollup.downlineSize,
+    treeDepth: rollup.treeDepth,
+    joinedAt: row.created_at ?? null,
+    convertedToAmbassadorAt:
+      row.converted_to_ambassador_at ?? row.ambassador_conversion_date ?? null,
     personId,
   };
 };
+
+/** Only attach a currency code when there is actually an amount. */
+const currencyCodeFor = (micros) =>
+  micros === null || micros === undefined ? undefined : DEFAULT_CURRENCY_CODE;
 
 const ambassadorValuesFromPayload = (payload) => ({
   name:
     [payload.firstName, payload.lastName].filter(Boolean).join(' ') ||
     payload.email ||
-    payload.ambassadorCode,
-  supabaseId: payload.supabaseId,
-  ambassadorCode: payload.ambassadorCode,
-  fullNameFirstName: payload.firstName,
-  fullNameLastName: payload.lastName,
-  emailsPrimaryEmail: payload.email ?? '',
+    payload.supabaseAmbassadorId,
+  supabaseAmbassadorId: payload.supabaseAmbassadorId,
   status: payload.status,
-  path: payload.path,
-  enrolledAt: payload.enrolledAt,
-  qualifiedRank: payload.qualifiedRank,
+  accountType: payload.accountType,
+  careerRank: payload.careerRank,
   paidAsRank: payload.paidAsRank,
+  referralCode: payload.referralCode,
+  trackingCode: payload.trackingCode,
+  customSlug: payload.customSlug,
   activeCustomerCount: payload.activeCustomerCount,
-  customerCVAmountMicros: payload.customerCVMicros,
-  customerCVCurrencyCode:
-    payload.customerCVMicros === null ? undefined : DEFAULT_CURRENCY_CODE,
-  groupCVAmountMicros: payload.groupCVMicros,
-  groupCVCurrencyCode:
-    payload.groupCVMicros === null ? undefined : DEFAULT_CURRENCY_CODE,
-  onboardingStage: payload.onboardingStage,
+  enrollmentCount: payload.enrollmentCount,
+  personalVolumeAmountMicros: payload.personalVolumeMicros,
+  personalVolumeCurrencyCode: currencyCodeFor(payload.personalVolumeMicros),
+  teamVolumeAmountMicros: payload.teamVolumeMicros,
+  teamVolumeCurrencyCode: currencyCodeFor(payload.teamVolumeMicros),
+  monthlyPvCvAmountMicros: payload.monthlyPvCvMicros,
+  monthlyPvCvCurrencyCode: currencyCodeFor(payload.monthlyPvCvMicros),
+  monthlyGvCvAmountMicros: payload.monthlyGvCvMicros,
+  monthlyGvCvCurrencyCode: currencyCodeFor(payload.monthlyGvCvMicros),
+  needsSponsorReview: payload.needsSponsorReview,
+  reparentLocked: payload.reparentLocked,
+  directReferralCount: payload.directReferralCount,
+  downlineSize: payload.downlineSize,
+  treeDepth: payload.treeDepth,
+  joinedAt: payload.joinedAt,
+  convertedToAmbassadorAt: payload.convertedToAmbassadorAt,
   personId: payload.personId,
 });
 
@@ -993,9 +1012,16 @@ const upsertAmbassador = async ({ row, personId }) => {
 
   if (!ambassadorId) {
     existingAmbassador =
-      (await findRecordByColumn(AMBASSADOR_TABLE, 'supabaseId', row.id)) ??
-      (await findRecordByColumn(AMBASSADOR_TABLE, 'ambassadorCode', row.tracking_code)) ??
-      (await findRecordByEmail(AMBASSADOR_TABLE, row.email));
+      (await findRecordByColumn(
+        AMBASSADOR_TABLE,
+        'supabaseAmbassadorId',
+        String(row.id),
+      )) ??
+      (await findRecordByColumn(
+        AMBASSADOR_TABLE,
+        'trackingCode',
+        row.tracking_code,
+      ));
     ambassadorId = existingAmbassador?.id ?? null;
   }
 
@@ -1578,6 +1604,34 @@ const customerIdByEmail = new Map();
   stats.affiliates.read = rows.length;
   stats.ambassadors.read = rows.length;
 
+  // Compute the genealogy rollups once for the whole set, before the per-row
+  // pass, so each ambassador can be written with its downline metrics in the
+  // same upsert. These drive node size/colour in the tree visualization.
+  ambassadorRollups = computeTreeRollups(rows);
+
+  // Guide §5: surface genealogy problems. A NULL parent on an ambassador is a
+  // legitimate root — report it as "review", never as "error".
+  const health = findAttentionNeeded(rows);
+  log(
+    `genealogy: ${health.roots.length} root(s), ` +
+      `${health.orphans.length} dangling parent_id, ` +
+      `${health.flagged.length} flagged needs_sponsor_review, ` +
+      `${health.cycles.size} node(s) on a cycle`,
+  );
+
+  if (health.orphans.length > 0) {
+    for (const row of health.orphans) {
+      log(
+        `  ⚠ dangling parent_id: ${row.email ?? row.id} -> parent_id=${row.parent_id} (not found)`,
+      );
+    }
+  }
+
+  // A cycle in a genealogy is always a bug and must never be silently ignored.
+  if (health.cycles.size > 0) {
+    log(`  ⚠ parent_id cycle involves: ${[...health.cycles].join(', ')}`);
+  }
+
   for (const row of rows) {
     const { first, last } = splitName(row.name);
     const payload = {
@@ -1617,7 +1671,9 @@ const affiliateById = new Map(
 const orderRows = await listOrders();
 
 // 3) Order months → Twenty Periods
-{
+// The Apps SDK object set has no Period object, so this pass is skipped unless
+// TWENTY_PERIOD_TABLE is explicitly configured.
+if (PERIOD_TABLE) {
   const rows = buildPeriodSummaries(orderRows);
   stats.periods.read = rows.length;
 
@@ -1627,6 +1683,8 @@ const orderRows = await listOrders();
     periodIdByCode.set(row.periodCode, result.id);
     log(`period ${row.periodCode} -> ${result.action}`);
   }
+} else {
+  log('period sync skipped: no Period object in the Apps SDK schema');
 }
 
 // 4) Customers (distinct buyers from orders) → Twenty people + Customer profiles

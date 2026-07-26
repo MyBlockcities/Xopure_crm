@@ -138,11 +138,24 @@ Two further problems even if data did flow:
 - [x] Make `mapAffiliateRank` **throw on unknown rank** (guide §2.6: never silently drop)
 - [x] Rename `level` → `paidAsRank` (stable field UUID + deprecated alias export)
 - [x] Repoint `Ambassador Rank Mix` pie chart at `paidAsRank`
-- [ ] **Enrich `xopureAmbassador` with the fields the sync + comp plan + tree need**
-      (volumes, customer counts, career rank, `needsSponsorReview`, downline rollups)
-- [ ] Rewrite sync payload builder + repoint target tables `_ambassador` → `_xopureAmbassador` etc.
+- [x] **Enrich `xopureAmbassador`** — careerRank, accountType, trackingCode, customSlug,
+      activeCustomerCount, enrollmentCount, personalVolume, teamVolume, monthlyPvCv,
+      monthlyGvCv, needsSponsorReview, reparentLocked, directReferralCount, downlineSize,
+      treeDepth, joinedAt, convertedToAmbassadorAt
+- [x] Add Person ⇄ xopureAmbassador relation (contact identity ↔ business profile)
+- [x] Fix the same fictional tier enum on `Person.xopureAmbassadorLevel`
+- [x] **Extract comp-plan logic into a pure, unit-tested module** (`lib/comp-plan.mjs`, 28 tests green)
+      — rank ladder, status, money, `computeTreeRollups`, `detectCycles`, `findAttentionNeeded`
+- [ ] Rewrite sync payload builders + repoint target tables `_ambassador` → `_xopureAmbassador` etc.
+- [ ] Wire `computeTreeRollups` into the ambassador sync pass
 - [ ] Delete the duplicate object set from the workspace
 - [ ] Re-run sync in `DRY_RUN=1`, diff the output, then live
+
+> ⚠️ **Verification constraint:** the sync script cannot be executed here — it needs live
+> Railway + Supabase credentials, and even `DRY_RUN=1` opens a Twenty Postgres connection
+> to read table columns. All comp-plan logic has therefore been moved into a pure module
+> that *is* testable (`npm test` in `scripts/xopure/sync-supabase-to-twenty`).
+> The remaining DB-touching code needs a human to run `DRY_RUN=1` against staging.
 
 ### Bugs this closes
 - [x] **Every `influencer`-rank ambassador displayed as Starter** — was missing from `rankMap`, fell through to `?? 'L1_STARTER'`
@@ -272,3 +285,5 @@ Twenty's Remote DOM Web Worker sandbox will fight D3/Three.js — don't build th
 | 2026-07-25 | Audit | Full system audit complete. Supabase read-only verified. Plan created. |
 | 2026-07-25 | Gate 0 | ✅ Secret scan clean · checkpoint commit `30e23a7e31` · tag `pre-upstream-merge-2026-07-25` · upstream remote added + fetched (Twenty `v2.9.0`). Railway backup still outstanding (human). |
 | 2026-07-25 | Gate 2 | ✅ Commit `bd6ff89c8ab` — sponsor/mentees genealogy relation + 8 real comp-plan ranks + fail-loud rank mapping. `node --check` OK, 0 real tsc errors. |
+| 2026-07-25 | Gate 2 | ✅ Commit `f60680f4e02` — ambassador schema enriched (17 fields) + Person⇄Ambassador relation + Person tier enum fixed. 0 real tsc errors. |
+| 2026-07-25 | Gate 2 | ✅ Commit `fe9b850ddcd` — pure `lib/comp-plan.mjs` with tree rollups, cycle detection, orphan triage. **28/28 tests green.** |
