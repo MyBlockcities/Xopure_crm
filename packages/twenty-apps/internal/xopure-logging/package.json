@@ -1,0 +1,21 @@
+{
+  "name": "@twenty-apps/xopure-logging",
+  "version": "0.1.0",
+  "description": "XO Pure Grafana observability panel and native AI tools for Twenty",
+  "scripts": {
+    "typecheck": "twenty typecheck",
+    "build": "twenty build"
+  },
+  "dependencies": {
+    "@remote-dom/core": "^1.0.0",
+    "@remote-dom/react": "^1.0.0",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "twenty-sdk": "^2.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}
