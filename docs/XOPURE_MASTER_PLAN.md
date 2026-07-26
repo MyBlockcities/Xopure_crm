@@ -146,10 +146,12 @@ Two further problems even if data did flow:
 - [x] Fix the same fictional tier enum on `Person.xopureAmbassadorLevel`
 - [x] **Extract comp-plan logic into a pure, unit-tested module** (`lib/comp-plan.mjs`, 28 tests green)
       — rank ladder, status, money, `computeTreeRollups`, `detectCycles`, `findAttentionNeeded`
-- [ ] Rewrite sync payload builders + repoint target tables `_ambassador` → `_xopureAmbassador` etc.
-- [ ] Wire `computeTreeRollups` into the ambassador sync pass
-- [ ] Delete the duplicate object set from the workspace
-- [ ] Re-run sync in `DRY_RUN=1`, diff the output, then live
+- [x] Rewrite sync payload builders + repoint target tables → `_xopureAmbassador` etc. (env-overridable)
+- [x] Wire `computeTreeRollups` + `findAttentionNeeded` into the ambassador sync pass
+- [x] Skip the Period pass (no Apps SDK equivalent) unless `TWENTY_PERIOD_TABLE` is set
+- [ ] ⚠️ **HUMAN REQUIRED:** run `DRY_RUN=1` against staging and diff the output
+- [ ] Delete the duplicate object set from the workspace (after DRY_RUN looks right)
+- [ ] Run the sync live
 
 > ⚠️ **Verification constraint:** the sync script cannot be executed here — it needs live
 > Railway + Supabase credentials, and even `DRY_RUN=1` opens a Twenty Postgres connection
@@ -234,11 +236,15 @@ Twenty's Remote DOM Web Worker sandbox will fight D3/Three.js — don't build th
 - [ ] Locate `xopure_d3_ambassador_tree.zip` — per `test_for_visuals.md` contains `rateCards.ts`, `types.ts`, `useAmbassadorTree.ts`, `AmbassadorTree.tsx`, `RateCardPanel.tsx`, `AmbassadorTreePage.tsx`. **This is essentially Sprint 3 pre-built.**
 - [ ] Locate `xopure_itol_pipeline.zip` (R/iTOL, 903 lines, 8 annotation layers)
 
-### Sprint V1 — Data access
-- [ ] Recursive CTE returning nested tree JSON
-- [ ] Next.js app skeleton, server-side only credentials
+### Sprint V1 — Data access ✅ (core complete)
+- [x] Recursive CTE returning the full subtree — `apps/ambassador-tree/sql/ambassador-tree.sql`
+      (cycle-guarded, depth-bounded, commission buckets separated per LAW §2.5)
+- [x] Rank ladder module with display-name mapping — `src/lib/ranks.ts`
+- [x] Subtree rollups: downline size, depth, revenue, CV, commissions — `src/lib/tree.ts`
+- [x] Lineage / re-root / flatten / top-by-downline-revenue helpers
+- [x] **30/30 tests green**, tsc clean
+- [ ] Next.js app shell, server-side only credentials
 - [ ] `/api/ambassador-tree` route + short-TTL cache
-- [ ] Subtree rollups: downline size, downline revenue, depth
 
 ### Sprint V2 — Core node-link tree
 - [ ] `d3-hierarchy` for layout math only (no DOM manipulation)
@@ -287,3 +293,5 @@ Twenty's Remote DOM Web Worker sandbox will fight D3/Three.js — don't build th
 | 2026-07-25 | Gate 2 | ✅ Commit `bd6ff89c8ab` — sponsor/mentees genealogy relation + 8 real comp-plan ranks + fail-loud rank mapping. `node --check` OK, 0 real tsc errors. |
 | 2026-07-25 | Gate 2 | ✅ Commit `f60680f4e02` — ambassador schema enriched (17 fields) + Person⇄Ambassador relation + Person tier enum fixed. 0 real tsc errors. |
 | 2026-07-25 | Gate 2 | ✅ Commit `fe9b850ddcd` — pure `lib/comp-plan.mjs` with tree rollups, cycle detection, orphan triage. **28/28 tests green.** |
+| 2026-07-25 | Gate 2 | ✅ Sync repointed at Apps SDK tables, ambassador payload rewritten, rollups + genealogy health wired in. Awaiting human `DRY_RUN=1`. |
+| 2026-07-25 | Sprint V1 | ✅ `apps/ambassador-tree` — recursive CTE + rank ladder + tree assembly. **30/30 tests green**, tsc clean. |
