@@ -4,6 +4,10 @@ export const XOPURE_AMBASSADOR_OBJECT_ID = 'edcc4b8c-e7eb-4d71-9c09-c2a46bb7b334
 export const XOPURE_AMBASSADOR_NAME_FIELD_ID = '2e504ddb-eee1-4ce2-af0b-8dc9b0df3e04';
 export const XOPURE_AMBASSADOR_LEVEL_FIELD_ID = '1e0f5ff7-5e98-414c-9a2a-09260d916bbc';
 export const XOPURE_AMBASSADOR_STATUS_FIELD_ID = '88af418d-b7af-419e-a546-42fd1a92fc08';
+export const XOPURE_AMBASSADOR_ATTRIBUTED_REVENUE_FIELD_ID =
+  '6cdfdeac-23c4-4bb1-b61c-e2ed179b25ba';
+export const XOPURE_AMBASSADOR_TOTAL_COMMISSION_EARNED_FIELD_ID =
+  'a38232d0-4679-46f5-950a-6d6000ed7221';
 
 export default defineObject({
   universalIdentifier: XOPURE_AMBASSADOR_OBJECT_ID,
@@ -50,8 +54,8 @@ export default defineObject({
     },
     { universalIdentifier: 'e6772271-9b15-484e-8f74-8a1566b4ff47', type: FieldType.TEXT, name: 'referralCode', label: 'Referral code', icon: 'IconTicket' },
     { universalIdentifier: '1bdfadb7-f157-4c2f-9b39-b735c1d71b9a', type: FieldType.NUMBER, name: 'commissionRate', label: 'Commission rate %', icon: 'IconPercentage', defaultValue: 0 },
-    { universalIdentifier: '6cdfdeac-23c4-4bb1-b61c-e2ed179b25ba', type: FieldType.NUMBER, name: 'attributedRevenue', label: 'Attributed revenue', icon: 'IconCurrencyDollar', defaultValue: 0 },
-    { universalIdentifier: 'a38232d0-4679-46f5-950a-6d6000ed7221', type: FieldType.NUMBER, name: 'totalCommissionEarned', label: 'Commission earned', icon: 'IconCash', defaultValue: 0 },
+    { universalIdentifier: XOPURE_AMBASSADOR_ATTRIBUTED_REVENUE_FIELD_ID, type: FieldType.NUMBER, name: 'attributedRevenue', label: 'Attributed revenue', icon: 'IconCurrencyDollar', defaultValue: 0 },
+    { universalIdentifier: XOPURE_AMBASSADOR_TOTAL_COMMISSION_EARNED_FIELD_ID, type: FieldType.NUMBER, name: 'totalCommissionEarned', label: 'Commission earned', icon: 'IconCash', defaultValue: 0 },
     { universalIdentifier: '0de23b2b-a89b-4180-96e5-5c70cb6c6c5b', type: FieldType.TEXT, name: 'researchSummary', label: 'Research summary', icon: 'IconNotes' },
   ],
 });

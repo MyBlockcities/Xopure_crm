@@ -1,35 +1,57 @@
 import { useEffect } from 'react';
 
+import { navigationMenuItemsSelector } from '@/navigation-menu-item/common/states/navigationMenuItemsSelector';
+import { metadataStoreState } from '@/metadata-store/states/metadataStoreState';
+import { useAtomFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilyStateValue';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { AppPath } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
+import { Loader } from 'twenty-ui/feedback';
 import { useNavigateApp } from '~/hooks/useNavigateApp';
 
+const XOPURE_MISSION_CONTROL_NAVIGATION_MENU_ITEM_NAME =
+  'XO Pure Mission Control';
+
 /**
- * MainDashboardRedirect (Apollo temporarily disabled)
+ * MainDashboardRedirect
  *
- * For now we land users on the Dashboards object index page.
- * This page already contains the prominent "Create Main Mission Control"
- * and "All templates" buttons we built, plus the full gallery.
- *
- * Root path has zero direct Apollo usage.
- * The template instantiation hook (useInstantiateDashboardTemplate) also has
- * its direct frontComponents Apollo query stripped for now — live realtime
- * widgets will be skipped until re-enabled.
- *
- * Once the custom object + FrontComponent metadata + Supabase sync are solid,
- * we can restore the full auto-instantiate + direct-to-dashboard behavior.
+ * The XO Pure app owns the primary Mission Control page layout. When the app is
+ * installed, its navigation item contains the workspace-specific page layout id
+ * needed by the standalone page route. If the app is not installed yet, fall
+ * back to the Dashboards object where the legacy template gallery is available.
  */
 export const MainDashboardRedirect = () => {
   const navigateApp = useNavigateApp();
+  const navigationMenuItems = useAtomStateValue(navigationMenuItemsSelector);
+  const metadataStore = useAtomFamilyStateValue(
+    metadataStoreState,
+    'navigationMenuItems',
+  );
 
   useEffect(() => {
-    // Immediately send the user to the Dashboards list.
-    // All the nice "Create Main Mission Control" UX lives there.
+    if (metadataStore.status === 'empty') {
+      return;
+    }
+
+    const missionControlNavigationItem = navigationMenuItems.find(
+      (item) =>
+        item.name === XOPURE_MISSION_CONTROL_NAVIGATION_MENU_ITEM_NAME &&
+        isDefined(item.pageLayoutId),
+    );
+
+    if (isDefined(missionControlNavigationItem?.pageLayoutId)) {
+      navigateApp(AppPath.PageLayoutPage, {
+        pageLayoutId: missionControlNavigationItem.pageLayoutId,
+      });
+
+      return;
+    }
+
     navigateApp(AppPath.RecordIndexPage, {
       objectNamePlural: 'dashboards',
     });
-  }, [navigateApp]);
+  }, [metadataStore.status, navigateApp, navigationMenuItems]);
 
-  // Show a minimal loading state while the redirect happens
   return (
     <div
       style={{
@@ -37,11 +59,9 @@ export const MainDashboardRedirect = () => {
         alignItems: 'center',
         justifyContent: 'center',
         height: '100vh',
-        fontSize: '14px',
-        color: '#666',
       }}
     >
-      Redirecting to Dashboards...
+      <Loader />
     </div>
   );
 };

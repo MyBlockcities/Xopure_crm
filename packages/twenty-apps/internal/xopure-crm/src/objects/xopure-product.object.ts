@@ -4,6 +4,7 @@ export const XOPURE_PRODUCT_OBJECT_ID = 'a620ee62-3e19-48f3-932c-a39a6f23b068';
 export const XOPURE_PRODUCT_NAME_FIELD_ID = 'fe73abc7-b74c-45a0-9446-57ea3f5f4dd9';
 export const XOPURE_PRODUCT_SKU_FIELD_ID = '711b9fca-a26b-4dd2-8d34-6bc449739018';
 export const XOPURE_PRODUCT_STATUS_FIELD_ID = 'ba8d4530-2c60-469a-98ef-5630dd4314a0';
+export const XOPURE_PRODUCT_CATEGORY_FIELD_ID = '0fb15744-00ee-408b-aff0-9a26edc06dbd';
 
 export default defineObject({
   universalIdentifier: XOPURE_PRODUCT_OBJECT_ID,
@@ -21,7 +22,7 @@ export default defineObject({
     { universalIdentifier: '01fd8a3d-88b9-43a0-b46b-4171654ad47b', type: FieldType.TEXT, name: 'slug', label: 'Slug', icon: 'IconLink' },
     { universalIdentifier: '30d632bf-a64e-48d1-a5c2-47139c00dce8', type: FieldType.NUMBER, name: 'priceCents', label: 'Price cents', icon: 'IconCurrencyDollar', defaultValue: 0 },
     { universalIdentifier: '3a317cbd-48fd-453e-991c-7b4e7a105fe8', type: FieldType.TEXT, name: 'currency', label: 'Currency', icon: 'IconCash' },
-    { universalIdentifier: '0fb15744-00ee-408b-aff0-9a26edc06dbd', type: FieldType.TEXT, name: 'category', label: 'Category', icon: 'IconCategory' },
+    { universalIdentifier: XOPURE_PRODUCT_CATEGORY_FIELD_ID, type: FieldType.TEXT, name: 'category', label: 'Category', icon: 'IconCategory' },
     {
       universalIdentifier: XOPURE_PRODUCT_STATUS_FIELD_ID,
       type: FieldType.SELECT,

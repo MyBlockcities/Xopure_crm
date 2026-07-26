@@ -1,74 +1,88 @@
 import { styled } from '@linaria/react';
 import { useState } from 'react';
 
-import { DASHBOARD_TEMPLATES, PRIMARY_MAIN_DASHBOARD_TEMPLATE } from '@/dashboards/templates/constants/DashboardTemplates';
+import {
+  DASHBOARD_TEMPLATES,
+  PRIMARY_MAIN_DASHBOARD_TEMPLATE,
+} from '@/dashboards/templates/constants/DashboardTemplates';
 import { type DashboardTemplate } from '@/dashboards/templates/types/DashboardTemplate';
 import { useInstantiateDashboardTemplate } from '@/dashboards/templates/hooks/useInstantiateDashboardTemplate';
 import { useLingui } from '@lingui/react/macro';
 import { Button } from 'twenty-ui/input';
 import { useIcons } from 'twenty-ui/display';
 import { isDefined } from 'twenty-shared/utils';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledHeader = styled.div`
   align-items: center;
-  border-bottom: 1px solid ${({ theme }) => theme.border.color.light};
+  border-bottom: 1px solid ${themeCssVariables.border.color.light};
   display: flex;
-  gap: ${({ theme }) => theme.spacing(4)};
+  gap: ${themeCssVariables.spacing[4]};
   justify-content: space-between;
-  padding: ${({ theme }) => theme.spacing(4)};
+  padding: ${themeCssVariables.spacing[4]};
 `;
 
 const StyledHeaderText = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.spacing(1)};
+  gap: ${themeCssVariables.spacing[1]};
 `;
 
 const StyledHeaderTitle = styled.span`
-  color: ${({ theme }) => theme.font.color.primary};
-  font-size: ${({ theme }) => theme.font.size.md};
-  font-weight: ${({ theme }) => theme.font.weight.semiBold};
+  color: ${themeCssVariables.font.color.primary};
+  font-size: ${themeCssVariables.font.size.md};
+  font-weight: ${themeCssVariables.font.weight.semiBold};
 `;
 
 const StyledHeaderSubtitle = styled.span`
-  color: ${({ theme }) => theme.font.color.tertiary};
-  font-size: ${({ theme }) => theme.font.size.sm};
+  color: ${themeCssVariables.font.color.tertiary};
+  font-size: ${themeCssVariables.font.size.sm};
 `;
 
 const StyledGrid = styled.div`
   display: grid;
-  gap: ${({ theme }) => theme.spacing(4)};
+  gap: ${themeCssVariables.spacing[4]};
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  padding: ${({ theme }) => theme.spacing(4)};
+  padding: ${themeCssVariables.spacing[4]};
   width: 100%;
 `;
 
-const StyledCard = styled.button<{ disabled: boolean }>`
+const StyledCard = styled.button<{ disabled: boolean; isMain: boolean }>`
   align-items: flex-start;
-  background: ${({ theme }) => theme.background.secondary};
-  border: 1px solid ${({ theme }) => theme.border.color.medium};
-  border-radius: ${({ theme }) => theme.border.radius.md};
+  background: ${themeCssVariables.background.secondary};
+  border: 1px solid
+    ${({ isMain }) =>
+      isMain
+        ? themeCssVariables.color.blue
+        : themeCssVariables.border.color.medium};
+  border-radius: ${themeCssVariables.border.radius.md};
+  box-shadow: ${({ isMain }) =>
+    isMain ? `0 0 0 1px ${themeCssVariables.color.blue}` : 'none'};
   cursor: ${({ disabled }) => (disabled ? 'progress' : 'pointer')};
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.spacing(2)};
+  gap: ${themeCssVariables.spacing[2]};
   opacity: ${({ disabled }) => (disabled ? 0.6 : 1)};
-  padding: ${({ theme }) => theme.spacing(4)};
+  padding: ${themeCssVariables.spacing[4]};
   text-align: left;
-  transition: border-color 0.1s ease, transform 0.1s ease;
+  transition:
+    border-color 0.1s ease,
+    transform 0.1s ease;
 
   &:hover {
-    border-color: ${({ theme, disabled }) =>
-      disabled ? theme.border.color.medium : theme.color.blue};
+    border-color: ${({ disabled }) =>
+      disabled
+        ? themeCssVariables.border.color.medium
+        : themeCssVariables.color.blue};
     transform: ${({ disabled }) => (disabled ? 'none' : 'translateY(-2px)')};
   }
 `;
 
 const StyledIconContainer = styled.div`
   align-items: center;
-  background: ${({ theme }) => theme.background.tertiary};
-  border-radius: ${({ theme }) => theme.border.radius.sm};
-  color: ${({ theme }) => theme.color.blue};
+  background: ${themeCssVariables.background.tertiary};
+  border-radius: ${themeCssVariables.border.radius.sm};
+  color: ${themeCssVariables.color.blue};
   display: flex;
   height: 32px;
   justify-content: center;
@@ -76,14 +90,14 @@ const StyledIconContainer = styled.div`
 `;
 
 const StyledTitle = styled.span`
-  color: ${({ theme }) => theme.font.color.primary};
-  font-size: ${({ theme }) => theme.font.size.md};
-  font-weight: ${({ theme }) => theme.font.weight.semiBold};
+  color: ${themeCssVariables.font.color.primary};
+  font-size: ${themeCssVariables.font.size.md};
+  font-weight: ${themeCssVariables.font.weight.semiBold};
 `;
 
 const StyledDescription = styled.span`
-  color: ${({ theme }) => theme.font.color.tertiary};
-  font-size: ${({ theme }) => theme.font.size.sm};
+  color: ${themeCssVariables.font.color.tertiary};
+  font-size: ${themeCssVariables.font.size.sm};
   line-height: 1.4;
 `;
 
@@ -98,7 +112,8 @@ export const DashboardTemplateGallery = () => {
   const [isCreatingAll, setIsCreatingAll] = useState(false);
   const [isCreatingMain, setIsCreatingMain] = useState(false);
 
-  const isBusy = isDefined(pendingTemplateKey) || isCreatingAll || isCreatingMain;
+  const isBusy =
+    isDefined(pendingTemplateKey) || isCreatingAll || isCreatingMain;
 
   const handleSelectTemplate = async (template: DashboardTemplate) => {
     if (isBusy) {
@@ -187,8 +202,8 @@ export const DashboardTemplateGallery = () => {
               key={template.key}
               type="button"
               disabled={isBusy}
+              isMain={isMain}
               onClick={() => handleSelectTemplate(template)}
-              style={isMain ? { borderColor: '#3b82f6', boxShadow: '0 0 0 1px #3b82f6' } : undefined}
             >
               <StyledIconContainer>
                 {isDefined(TemplateIcon) ? <TemplateIcon size={20} /> : null}

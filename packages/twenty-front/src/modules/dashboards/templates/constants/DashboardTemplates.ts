@@ -1,3 +1,4 @@
+/* oxlint-disable twenty/max-consts-per-file */
 import { type DashboardTemplate } from '@/dashboards/templates/types/DashboardTemplate';
 import { AggregateOperations } from '~/generated-metadata/graphql';
 

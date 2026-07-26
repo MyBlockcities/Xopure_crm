@@ -1,0 +1,237 @@
+# XO Pure CRM — Master Execution Plan
+
+**Created:** 2026-07-25
+**Owner:** Brian
+**Scope:** Upstream Twenty sync → data correctness → ambassador tree visualizations
+
+Check items off as they complete. Each gate is blocking for the next.
+
+---
+
+## 🔒 SUPABASE SAFETY CONTRACT (read before every session)
+
+**Supabase is an absolute read-only source. Nothing in this plan writes to it.**
+
+Verified read-only paths:
+- `scripts/xopure/sync-supabase-to-twenty/index.mjs` — `supabaseRest()` throws on any non-GET method (fail-closed). `upsertSyncMap()` is a logging no-op. All `supabasePg` queries are `select`.
+
+### ⛔ QUARANTINED — never execute without explicit human sign-off
+
+| Asset | Why it is dangerous |
+|---|---|
+| `scripts/xopure/apply-supabase-sql.sh` | POSTs to Supabase Management API with `read_only: false`. This is the only write vector in the repo. |
+| `supabase/migrations/202605070001_create_crm_sync_map.sql` | DDL against Supabase |
+| `supabase/migrations/202605080001_xopure_affiliate_platform_core.sql` | DDL against Supabase |
+| `supabase/migrations/202605080002_create_crm_prospecting_tables.sql` | DDL against Supabase |
+| `supabase/migrations/202605220001_allow_multi_object_crm_sync_map.sql` | DDL against Supabase |
+
+Rules:
+- [ ] No agent/automation ever invokes `apply-supabase-sql.sh`
+- [ ] Supabase MCP server is configured with `read_only=true` only
+- [ ] `crm_readonly` role SQL is **authored for human review**, never auto-applied
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` never ships in a deployed artifact
+- [ ] All destructive-looking commands surfaced for approval, never auto-run
+
+---
+
+## Gate 0 — Safety net
+
+No Supabase contact. Pure git + backup.
+
+- [ ] Commit the dirty working tree (15 modified + 4 untracked files)
+- [ ] Tag rollback point `pre-upstream-merge-2026-07-25`
+- [ ] Add real upstream remote `twentyhq/twenty` and fetch
+- [ ] Capture Railway Postgres backup (Twenty DB — *not* Supabase)
+- [ ] Confirm `.env` still gitignored and untracked
+
+**Exit criteria:** working tree clean, rollback tag exists, upstream fetched.
+
+---
+
+## Gate 1 — Upstream Twenty sync (1,947 commits)
+
+Merge base `83c40bb8cc` (2026-05-06) → `origin/main` `763d31a859` (2026-07-25).
+
+Customization is 166 new files / 40 modified / only 73 deletions — mostly additive.
+
+- [ ] Create branch `chore/upstream-sync-2026-07`
+- [ ] **Retire branding diffs into Docker build overlay** (kills ~60% of conflict surface permanently)
+  - [ ] `packages/twenty-emails/*` (9 files)
+  - [ ] favicons / `manifest.json` / `index.html` (6 files)
+  - [ ] `title-utils.ts`, `FooterNote.tsx`, `NotFound.tsx`, `DefaultWorkspaceName.ts`, `SignInUp.tsx`, `Authorize.tsx`, `SyncEmails.tsx`
+- [ ] Merge upstream
+- [ ] Resolve infra conflicts: `Dockerfile`, `entrypoint.sh`, `nest-cli.json`, `database-command.module.ts`
+- [ ] **Re-derive (do NOT text-merge) the dashboard layer** — upstream restructured this heavily:
+  - [ ] `page-layout/widgets/graph/components/GraphWidget.tsx`
+  - [ ] `page-layout/widgets/graph/hooks/useGraphWidgetQueryCommon.ts`
+  - [ ] `dashboards/templates/*` (5 files)
+  - [ ] `app/hooks/useCreateAppRouter.tsx`
+  - [ ] `pages/main-dashboard/*`
+- [ ] Verify `twenty-sdk` API compat (`defineObject` / `defineFrontComponent` / `definePageLayoutTab` moved between 2.5→2.8+)
+- [ ] Typecheck + build clean
+- [ ] Run migrations against a **clone** of the Twenty DB first
+- [ ] Deploy to Railway, smoke test
+
+**Exit criteria:** app builds and boots on current upstream, dashboards render.
+
+---
+
+## Gate 2 — Schema reconciliation ⚠️ DECISION REQUIRED
+
+**Problem:** two competing schemas both define ambassadors, and they disagree.
+
+| | `scripts/.../setup-custom-objects/spec.mjs` | `packages/twenty-apps/internal/xopure-crm/` |
+|---|---|---|
+| Object | `ambassador` / `customer` / `xoOrder` | `xopureAmbassador` / `xopureCustomer` / `xopureOrder` |
+| Ranks | `L0_CUSTOMER`…`L6_ICON` (7) | `SEED`…`ELITE` (6) |
+| Sponsor self-relation | ✅ `mentees` ⇄ `sponsor` | ❌ none |
+| Has synced data | ✅ yes | ❌ empty |
+
+**Recommendation:** converge on the Apps SDK objects (nav items, Mission Control layout, and front-components already target them).
+
+- [ ] **DECIDE: Apps SDK as single source of truth** (or override)
+- [ ] Port `sponsor`/`mentees` self-relation into the App
+      (`MANY_TO_ONE`, `joinColumnName: 'sponsorId'`, `onDelete: SET_NULL`)
+- [ ] **Fix the rank enum to the 8 real comp-plan ranks**, keyed on internal Supabase key, labelled with guide display name:
+
+  | Supabase key | Display label |
+  |---|---|
+  | `customer` | Customer |
+  | `starter` | Ambassador |
+  | `builder` | Partner |
+  | `influencer` | Influencer |
+  | `promoter` | **Leader** |
+  | `leader` | **Executive** |
+  | `director` | Director |
+  | `icon` | Visionary |
+
+- [ ] Make `mapAffiliateRank` **throw on unknown rank** (guide §2.6: never silently drop)
+- [ ] Repoint sync script at App-created tables
+- [ ] Delete the duplicate object set from the workspace
+- [ ] Re-run sync in `DRY_RUN=1`, diff the output, then live
+
+### Bugs this closes
+- [ ] **Every `influencer`-rank ambassador currently displays as Starter** (missing from `rankMap`, falls through to `?? 'L1_STARTER'`)
+- [ ] `promoter` mislabelled "Promoter" — must read **Leader**
+- [ ] `leader` mislabelled "Leader" — must read **Executive**
+- [ ] Raw internal rank keys leaking into UI (violates guide §2.1)
+
+**Exit criteria:** one object set, 8 correct ranks, sponsor tree populated, zero raw keys in UI.
+
+---
+
+## Gate 3 — Close the data gaps
+
+`commission_ledger` — the table the entire Developer Guide is about — **has no object and no sync.** `spec.mjs` line 435: `// Phase 2-5 to follow`.
+
+In dependency order:
+
+- [ ] `commission_ledger` object + sync (highest value)
+      incl. `pay_area`, `status`, `pay_cycle`, `cap_adjustment_cents`, `calculation_trace_json`
+- [ ] `rank_definitions` object + sync → becomes the display-name lookup, removes hardcoded map
+- [ ] Fulfillment fields on `orders` (ShipHero: `shipped_at`, `tracking_*`, `fulfillment_status/error`, `shiphero_synced_at`)
+- [ ] `support_tickets` object + sync
+- [ ] `affiliate_attributions`
+- [ ] `payout_batches` / `payout_batch_items` (masked — **never** raw account numbers)
+- [ ] `shipping_sync_queue`
+
+### Display-rule module (guide §2 = LAW)
+- [ ] Shared formatter: every rate string carries its basis
+      (`"25% of retail"`, `"30% of CV"`, `"4% of CV · generation 2"`, `"5% Team Pool · seat 2 of 4"`)
+- [ ] Never render a bare `1.25%`
+- [ ] Status labels: `held`→"Clearing (7-day hold)", `payable`→"Payable — next Friday", `accrued`→"Generation — pays on the 5th"
+- [ ] **Accrued/monthly generation never sums into a weekly payable total**
+- [ ] Pre-2026-07-25 gen rows tagged "legacy Gen Pool"
+- [ ] Money is integer cents → divide by 100 at render only
+- [ ] Comp week = Fri 00:00 → Thu 23:59 **CST (UTC-6 fixed)**
+- [ ] `payout_details` bank fields masked to last4
+- [ ] Unmappable pay areas surfaced, never dropped
+
+### Reports (guide §6)
+- [ ] Owed today
+- [ ] Weekly commission log
+- [ ] Per-ambassador statement
+- [ ] Compensation audit export
+- [ ] COGS / units shipped (filter `fulfillment_status='shipped'`, include `comp`)
+- [ ] Stranded shipments alert list (guide §4.2)
+- [ ] Orphaned / needs-sponsor-review list (guide §5)
+
+**Exit criteria:** commissions visible and correct, display rules enforced centrally.
+
+---
+
+## Gate 4 — Sync hardening
+
+- [ ] **Author** `crm_readonly` role SQL (`GRANT SELECT` only) — ⛔ human runs it, not the agent
+- [ ] Switch sync to `SUPABASE_SYNC_SOURCE=pg` using `crm_readonly`
+- [ ] Drop `SUPABASE_SERVICE_ROLE_KEY` dependency entirely
+- [ ] Remove hardcoded workspace schema fallback `workspace_5pedu4dl120j0zsebvp6nap5w`
+- [ ] Add Supabase MCP server (`read_only=true`) to `.mcp.json`
+- [ ] Consider migrating raw-SQL writes → Twenty REST/GraphQL (survives future upgrades)
+
+**Exit criteria:** no service-role key anywhere, no hardcoded schema.
+
+---
+
+## Visualization Sprints
+
+Architecture: **standalone Next.js app embedded as a Twenty dashboard iframe widget.**
+Twenty's Remote DOM Web Worker sandbox will fight D3/Three.js — don't build the heavy viz as a front component.
+
+### Two corrections to the original plan
+1. **Phase 0 is ~80% already done.** The `sponsor`/`mentees` relation and the `parent_id` walk (`linkAmbassadorSponsors`) already exist. Sprint 1 collapses into Gate 2.
+2. **Skip the recursive Logic Function.** Query the Supabase read replica directly via `crm_readonly` with a single **recursive CTE** over `affiliates.parent_id`. One query for the whole tree, versus fighting Twenty's shallow GraphQL depth + 100 req/min cap. Twenty stays the embedding surface and deep-link target; Supabase stays the tree source. Also decouples the viz app from upstream merge churn.
+
+### Prior art to recover before rebuilding
+- [ ] Locate `xopure_d3_ambassador_tree.zip` — per `test_for_visuals.md` contains `rateCards.ts`, `types.ts`, `useAmbassadorTree.ts`, `AmbassadorTree.tsx`, `RateCardPanel.tsx`, `AmbassadorTreePage.tsx`. **This is essentially Sprint 3 pre-built.**
+- [ ] Locate `xopure_itol_pipeline.zip` (R/iTOL, 903 lines, 8 annotation layers)
+
+### Sprint V1 — Data access
+- [ ] Recursive CTE returning nested tree JSON
+- [ ] Next.js app skeleton, server-side only credentials
+- [ ] `/api/ambassador-tree` route + short-TTL cache
+- [ ] Subtree rollups: downline size, downline revenue, depth
+
+### Sprint V2 — Core node-link tree
+- [ ] `d3-hierarchy` for layout math only (no DOM manipulation)
+- [ ] SVG React renderer, expand/collapse, collapsed-descendant badges
+- [ ] Pan/zoom canvas
+- [ ] Path highlighting — one reserved accent colour for the selected lineage
+- [ ] Deep link → `https://crm.xopure.com/object/...`
+- [ ] Framer Motion 150–250ms eased transitions
+
+### Sprint V3 — Node annotation rings (table2itol-inspired)
+- [ ] Tier ring using the **8 correct display ranks** (depends on Gate 2)
+- [ ] 6–12 month referral-activity heatmap strip
+- [ ] "Active this month" binary dot
+- [ ] Revenue-vs-goal gradient bar
+- [ ] Rate-card hover card per `paid_as_rank`
+
+### Sprint V4 — Additional layout modes
+- [ ] Radial / sunburst
+- [ ] Grid / block hierarchy (HeiankyoView-inspired) — for wide networks
+- [ ] Parallel-coordinates metrics explorer (Hidden-inspired)
+
+### Sprint V5 — Embed into crm.xopure.com
+- [ ] `defineNavigationMenuItem` entry
+- [ ] Dashboard iframe widget
+- [ ] Optional thin `defineFrontComponent` preview tab on record page
+- [ ] `Content-Security-Policy: frame-ancestors https://crm.xopure.com` on the viz app
+
+### Sprint V6 — Performance & polish
+- [ ] Lazy-load subtrees (2–3 generations initially)
+- [ ] Auto-switch SVG → Canvas/WebGL above ~200 visible nodes
+- [ ] Skeleton shimmer loading state
+- [ ] Responsive degrade to accordion on narrow viewports
+- [ ] Respect host theme tokens (light/dark parity)
+
+### Stretch
+- [ ] AI insights panel over the same tree payload (v2 scope)
+
+---
+
+## Progress log
+
+| Date | Gate | Note |
+|---|---|---|
+| 2026-07-25 | Audit | Full system audit complete. Supabase read-only verified. Plan created. |

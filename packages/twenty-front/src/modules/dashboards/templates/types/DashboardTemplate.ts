@@ -27,10 +27,9 @@ export type RecordTableWidgetTemplate = BaseWidgetTemplate & {
   objectNameSingular: string;
 };
 
-export type FrontComponentWidgetTemplate = BaseWidgetTemplate &
-  {
-    type: 'frontComponent';
-  } & (
+export type FrontComponentWidgetTemplate = BaseWidgetTemplate & {
+  type: 'frontComponent';
+} & (
     | {
         frontComponentId: string;
         frontComponentUniversalIdentifier?: never;

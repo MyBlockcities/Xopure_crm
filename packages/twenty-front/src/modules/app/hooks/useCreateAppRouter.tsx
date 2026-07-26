@@ -215,11 +215,10 @@ export const useCreateAppRouter = (
               </LazyRoute>
             }
           />
-          {/* 
+          {/*
             XO Pure Main Dashboard Landing
-            This is now the default experience after login / at AppPath.Index.
-            It ensures the PRIMARY_MAIN_DASHBOARD_TEMPLATE (Admin Mission Control I) exists
-            and navigates the user directly there.
+            The root path prefers the installed XO Pure Mission Control page
+            layout and falls back to the legacy dashboard template gallery.
           */}
           <Route
             path={indexAppPath.getIndexAppPath()}

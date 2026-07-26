@@ -179,9 +179,7 @@ describe('buildDraftPageLayoutFromTemplate', () => {
     });
 
     expect(
-      draft.tabs[0].widgets.map(
-        (widget) => widget.configuration?.__typename,
-      ),
+      draft.tabs[0].widgets.map((widget) => widget.configuration?.__typename),
     ).toEqual([
       'BarChartConfiguration',
       'LineChartConfiguration',
@@ -352,27 +350,26 @@ describe('shipped DASHBOARD_TEMPLATES resolve against the deployed object model'
   // Front components resolve by universal identifier (live widgets in the XO Pure app).
   const resolveFrontComponentId = () => 'resolved-front-component-id';
 
-  it.each(DASHBOARD_TEMPLATES.map((template) => [template.name, template] as const))(
-    '%s renders every card (none skipped)',
-    (_name, template) => {
-      const draft = buildDraftPageLayoutFromTemplate({
-        template,
-        pageLayoutId: 'page-layout-id',
-        resolveObjectMetadataId,
-        resolveFieldMetadataId,
-        resolveFrontComponentId,
-      });
+  it.each(
+    DASHBOARD_TEMPLATES.map((template) => [template.name, template] as const),
+  )('%s renders every card (none skipped)', (_name, template) => {
+    const draft = buildDraftPageLayoutFromTemplate({
+      template,
+      pageLayoutId: 'page-layout-id',
+      resolveObjectMetadataId,
+      resolveFieldMetadataId,
+      resolveFrontComponentId,
+    });
 
-      const builtWidgetCount = draft.tabs.reduce(
-        (total, tab) => total + tab.widgets.length,
-        0,
-      );
-      const templateWidgetCount = template.tabs.reduce(
-        (total, tab) => total + tab.widgets.length,
-        0,
-      );
+    const builtWidgetCount = draft.tabs.reduce(
+      (total, tab) => total + tab.widgets.length,
+      0,
+    );
+    const templateWidgetCount = template.tabs.reduce(
+      (total, tab) => total + tab.widgets.length,
+      0,
+    );
 
-      expect(builtWidgetCount).toBe(templateWidgetCount);
-    },
-  );
+    expect(builtWidgetCount).toBe(templateWidgetCount);
+  });
 });

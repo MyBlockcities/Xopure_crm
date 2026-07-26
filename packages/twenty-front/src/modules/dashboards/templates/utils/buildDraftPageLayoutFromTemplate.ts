@@ -6,9 +6,11 @@ import { type PageLayoutWidget } from '@/page-layout/types/PageLayoutWidget';
 import { createDefaultFrontComponentWidget } from '@/page-layout/utils/createDefaultFrontComponentWidget';
 import { createDefaultGraphWidget } from '@/page-layout/utils/createDefaultGraphWidget';
 import { createDefaultRecordTableWidget } from '@/page-layout/utils/createDefaultRecordTableWidget';
-import { type DashboardTemplate } from '@/dashboards/templates/types/DashboardTemplate';
-import { type GraphWidgetTemplate } from '@/dashboards/templates/types/DashboardTemplate';
-import { type DashboardWidgetTemplate } from '@/dashboards/templates/types/DashboardTemplate';
+import {
+  type DashboardTemplate,
+  type DashboardWidgetTemplate,
+  type GraphWidgetTemplate,
+} from '@/dashboards/templates/types/DashboardTemplate';
 import { type GraphColor } from '@/page-layout/widgets/graph/types/GraphColor';
 import { isDefined } from 'twenty-shared/utils';
 import {

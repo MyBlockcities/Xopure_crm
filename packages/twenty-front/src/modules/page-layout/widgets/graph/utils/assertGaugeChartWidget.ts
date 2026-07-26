@@ -19,7 +19,10 @@ export const assertGaugeChartWidgetOrThrow: AssertGaugeChartWidgetOrThrow = (
   );
 
   if (
-    !isWidgetConfigurationOfType(widget.configuration, 'GaugeChartConfiguration')
+    !isWidgetConfigurationOfType(
+      widget.configuration,
+      'GaugeChartConfiguration',
+    )
   ) {
     throw new Error(
       `Expected GaugeChartConfiguration but got ${widget.configuration?.__typename}`,
