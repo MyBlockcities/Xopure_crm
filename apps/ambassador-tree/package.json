@@ -1,0 +1,16 @@
+{
+  "name": "xopure-ambassador-tree",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ambassador genealogy tree visualization for crm.xopure.com. Deployed standalone and embedded into Twenty as a dashboard iframe widget.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
