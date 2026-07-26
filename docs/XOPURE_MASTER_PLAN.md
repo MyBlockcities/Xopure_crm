@@ -42,7 +42,7 @@ No Supabase contact. Pure git + backup.
 - [x] Commit the dirty working tree → `30e23a7e31` (20 files, +1473/-93)
 - [x] Tag rollback point `pre-upstream-merge-2026-07-25`
 - [x] Add real upstream remote `twentyhq/twenty`
-- [ ] Fetch upstream (in progress — large repo)
+- [x] Fetch upstream — done. **Twenty is now at `v2.9.0`** (you are on a 2.8-era base).
 - [ ] ⚠️ **BLOCKED — human required:** Capture Railway Postgres backup (Twenty DB — *not* Supabase).
       `railway`, `pg_dump`, and `supabase` CLIs are not on the agent's PATH, and this needs production credentials.
 - [x] Confirm `.env` still gitignored and untracked
@@ -118,10 +118,11 @@ Two further problems even if data did flow:
 
 **Recommendation:** converge on the Apps SDK objects (nav items, Mission Control layout, and front-components already target them).
 
-- [ ] **DECIDE: Apps SDK as single source of truth** (or override)
-- [ ] Port `sponsor`/`mentees` self-relation into the App
+- [x] **DECIDED: Apps SDK is the single source of truth** (2026-07-25)
+- [x] Port `sponsor`/`mentees` self-relation into the App
       (`MANY_TO_ONE`, `joinColumnName: 'sponsorId'`, `onDelete: SET_NULL`)
-- [ ] **Fix the rank enum to the 8 real comp-plan ranks**, keyed on internal Supabase key, labelled with guide display name:
+      → `fields/ambassador-mentees-on-ambassador.field.ts`, `fields/ambassador-sponsor-on-ambassador.field.ts`
+- [x] **Fix the rank enum to the 8 real comp-plan ranks**, keyed on internal Supabase key, labelled with guide display name:
 
   | Supabase key | Display label |
   |---|---|
@@ -134,16 +135,21 @@ Two further problems even if data did flow:
   | `director` | Director |
   | `icon` | Visionary |
 
-- [ ] Make `mapAffiliateRank` **throw on unknown rank** (guide §2.6: never silently drop)
-- [ ] Repoint sync script at App-created tables
+- [x] Make `mapAffiliateRank` **throw on unknown rank** (guide §2.6: never silently drop)
+- [x] Rename `level` → `paidAsRank` (stable field UUID + deprecated alias export)
+- [x] Repoint `Ambassador Rank Mix` pie chart at `paidAsRank`
+- [ ] **Enrich `xopureAmbassador` with the fields the sync + comp plan + tree need**
+      (volumes, customer counts, career rank, `needsSponsorReview`, downline rollups)
+- [ ] Rewrite sync payload builder + repoint target tables `_ambassador` → `_xopureAmbassador` etc.
 - [ ] Delete the duplicate object set from the workspace
 - [ ] Re-run sync in `DRY_RUN=1`, diff the output, then live
 
 ### Bugs this closes
-- [ ] **Every `influencer`-rank ambassador currently displays as Starter** (missing from `rankMap`, falls through to `?? 'L1_STARTER'`)
-- [ ] `promoter` mislabelled "Promoter" — must read **Leader**
-- [ ] `leader` mislabelled "Leader" — must read **Executive**
-- [ ] Raw internal rank keys leaking into UI (violates guide §2.1)
+- [x] **Every `influencer`-rank ambassador displayed as Starter** — was missing from `rankMap`, fell through to `?? 'L1_STARTER'`
+- [x] `promoter` mislabelled "Promoter" — now reads **Leader**
+- [x] `leader` mislabelled "Leader" — now reads **Executive**
+- [x] Raw internal rank keys leaking into UI — keys are now `value`, display names are `label`
+- [x] `Ambassador Level Mix` charting a fictional tier enum
 
 **Exit criteria:** one object set, 8 correct ranks, sponsor tree populated, zero raw keys in UI.
 
@@ -264,3 +270,5 @@ Twenty's Remote DOM Web Worker sandbox will fight D3/Three.js — don't build th
 | Date | Gate | Note |
 |---|---|---|
 | 2026-07-25 | Audit | Full system audit complete. Supabase read-only verified. Plan created. |
+| 2026-07-25 | Gate 0 | ✅ Secret scan clean · checkpoint commit `30e23a7e31` · tag `pre-upstream-merge-2026-07-25` · upstream remote added + fetched (Twenty `v2.9.0`). Railway backup still outstanding (human). |
+| 2026-07-25 | Gate 2 | ✅ Commit `bd6ff89c8ab` — sponsor/mentees genealogy relation + 8 real comp-plan ranks + fail-loud rank mapping. `node --check` OK, 0 real tsc errors. |
