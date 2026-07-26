@@ -6,9 +6,9 @@ import {
 } from 'twenty-sdk/define';
 import {
   XOPURE_AMBASSADOR_ATTRIBUTED_REVENUE_FIELD_ID,
-  XOPURE_AMBASSADOR_LEVEL_FIELD_ID,
   XOPURE_AMBASSADOR_NAME_FIELD_ID,
   XOPURE_AMBASSADOR_OBJECT_ID,
+  XOPURE_AMBASSADOR_PAID_AS_RANK_FIELD_ID,
   XOPURE_AMBASSADOR_TOTAL_COMMISSION_EARNED_FIELD_ID,
 } from 'src/objects/xopure-ambassador.object';
 import {
@@ -173,7 +173,7 @@ export default definePageLayout({
         },
         {
           universalIdentifier: '6b78319f-a32c-425b-a6bc-894e57ae3de9',
-          title: 'Ambassador Level Mix',
+          title: 'Ambassador Rank Mix',
           type: 'GRAPH',
           objectUniversalIdentifier: XOPURE_AMBASSADOR_OBJECT_ID,
           gridPosition: { row: 10, column: 6, rowSpan: 6, columnSpan: 6 },
@@ -183,7 +183,7 @@ export default definePageLayout({
               XOPURE_AMBASSADOR_NAME_FIELD_ID,
             aggregateOperation: AggregateOperations.COUNT,
             groupByFieldMetadataUniversalIdentifier:
-              XOPURE_AMBASSADOR_LEVEL_FIELD_ID,
+              XOPURE_AMBASSADOR_PAID_AS_RANK_FIELD_ID,
             displayDataLabel: true,
             displayLegend: true,
             showCenterMetric: true,

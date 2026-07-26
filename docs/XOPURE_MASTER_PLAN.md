@@ -38,13 +38,20 @@ Rules:
 
 No Supabase contact. Pure git + backup.
 
-- [ ] Commit the dirty working tree (15 modified + 4 untracked files)
-- [ ] Tag rollback point `pre-upstream-merge-2026-07-25`
-- [ ] Add real upstream remote `twentyhq/twenty` and fetch
-- [ ] Capture Railway Postgres backup (Twenty DB — *not* Supabase)
-- [ ] Confirm `.env` still gitignored and untracked
+- [x] Secret scan of all staged content — clean (no `sb_publishable_`, `sb_secret_`, `service_role`, or JWT literals)
+- [x] Commit the dirty working tree → `30e23a7e31` (20 files, +1473/-93)
+- [x] Tag rollback point `pre-upstream-merge-2026-07-25`
+- [x] Add real upstream remote `twentyhq/twenty`
+- [ ] Fetch upstream (in progress — large repo)
+- [ ] ⚠️ **BLOCKED — human required:** Capture Railway Postgres backup (Twenty DB — *not* Supabase).
+      `railway`, `pg_dump`, and `supabase` CLIs are not on the agent's PATH, and this needs production credentials.
+- [x] Confirm `.env` still gitignored and untracked
 
-**Exit criteria:** working tree clean, rollback tag exists, upstream fetched.
+**Exit criteria:** working tree clean, rollback tag exists, upstream fetched, **backup captured**.
+
+> **Note:** the upstream fetch is a convenience for tracking real Twenty release tags.
+> The merge itself can proceed from `origin/main`, which already carries upstream code
+> (head `763d31a859` is an upstream commit).
 
 ---
 
@@ -77,6 +84,28 @@ Customization is 166 new files / 40 modified / only 73 deletions — mostly addi
 ---
 
 ## Gate 2 — Schema reconciliation ⚠️ DECISION REQUIRED
+
+> **Sequencing finding:** Gate 2 is **merge-independent**. Every file it touches
+> (`spec.mjs`, `sync-supabase-to-twenty/index.mjs`, `packages/twenty-apps/internal/xopure-crm/**`)
+> is XO Pure-owned and does not exist upstream, so it cannot conflict with the Gate 1 merge.
+> It can safely run **before** Gate 1 — and arguably should, since it fixes a live data bug.
+
+### 🚨 ROOT CAUSE OF "DATA NOT WORKING" (confirmed 2026-07-25)
+
+**The UI and the data are pointed at two different object sets.**
+
+- Every nav item and every Mission Control widget targets `XOPURE_AMBASSADOR_OBJECT_ID`
+  (`edcc4b8c-e7eb-4d71-9c09-c2a46bb7b334`) — the **Apps SDK object, which receives zero synced data.**
+- The sync script populates `_ambassador` — the **`spec.mjs` object, which holds all the data
+  and the populated sponsor tree.**
+
+Affected widgets, all currently rendering empty/zero:
+`Total Ambassadors` · `Ambassador Level Mix` · `Commission Earned` · `Attributed Revenue` · `Recent Ambassadors`
+
+Two further problems even if data did flow:
+- `Ambassador Level Mix` groups by the `SEED…ELITE` enum, which maps to **no real comp-plan rank**.
+- `Commission Earned` sums `totalCommissionEarned`, a scalar field **nothing populates**
+  (there is no `commission_ledger` sync).
 
 **Problem:** two competing schemas both define ambassadors, and they disagree.
 

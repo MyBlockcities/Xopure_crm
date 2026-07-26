@@ -2,7 +2,12 @@ import { defineObject, FieldType } from 'twenty-sdk/define';
 
 export const XOPURE_AMBASSADOR_OBJECT_ID = 'edcc4b8c-e7eb-4d71-9c09-c2a46bb7b334';
 export const XOPURE_AMBASSADOR_NAME_FIELD_ID = '2e504ddb-eee1-4ce2-af0b-8dc9b0df3e04';
-export const XOPURE_AMBASSADOR_LEVEL_FIELD_ID = '1e0f5ff7-5e98-414c-9a2a-09260d916bbc';
+export const XOPURE_AMBASSADOR_PAID_AS_RANK_FIELD_ID =
+  '1e0f5ff7-5e98-414c-9a2a-09260d916bbc';
+
+/** @deprecated Renamed to XOPURE_AMBASSADOR_PAID_AS_RANK_FIELD_ID. Same UUID, kept for import compatibility. */
+export const XOPURE_AMBASSADOR_LEVEL_FIELD_ID =
+  XOPURE_AMBASSADOR_PAID_AS_RANK_FIELD_ID;
 export const XOPURE_AMBASSADOR_STATUS_FIELD_ID = '88af418d-b7af-419e-a546-42fd1a92fc08';
 export const XOPURE_AMBASSADOR_ATTRIBUTED_REVENUE_FIELD_ID =
   '6cdfdeac-23c4-4bb1-b61c-e2ed179b25ba';
@@ -15,26 +20,31 @@ export default defineObject({
   namePlural: 'xopureAmbassadors',
   labelSingular: 'XO Pure Ambassador',
   labelPlural: 'XO Pure Ambassadors',
-  description: 'Ambassador lifecycle, level, codes, attribution, and payout context.',
+  description:
+    'Ambassador lifecycle, comp-plan rank, genealogy (sponsor/mentees), codes, attribution, and payout context.',
   icon: 'IconRosetteDiscountCheck',
   labelIdentifierFieldMetadataUniversalIdentifier: XOPURE_AMBASSADOR_NAME_FIELD_ID,
   fields: [
     { universalIdentifier: XOPURE_AMBASSADOR_NAME_FIELD_ID, type: FieldType.TEXT, name: 'name', label: 'Name', icon: 'IconUserStar' },
     { universalIdentifier: 'f6f2230e-f5a8-4472-bd05-3f7bfc1f928b', type: FieldType.TEXT, name: 'supabaseAmbassadorId', label: 'Supabase ambassador ID', icon: 'IconDatabase' },
     {
-      universalIdentifier: XOPURE_AMBASSADOR_LEVEL_FIELD_ID,
+      universalIdentifier: XOPURE_AMBASSADOR_PAID_AS_RANK_FIELD_ID,
       type: FieldType.SELECT,
-      name: 'level',
-      label: 'Ambassador level',
+      name: 'paidAsRank',
+      label: 'Paid-as rank',
       icon: 'IconAward',
-      defaultValue: "'SEED'",
+      description:
+        'Comp-plan rank this ambassador is paid at. Mirrors Supabase affiliates.paid_as_rank. Values are the PERMANENT internal keys; labels are the spec display names (COMP_PLAN_LAW §1.5). Never surface the raw value.',
+      defaultValue: "'STARTER'",
       options: [
-        { id: 'f39fbfbf-fb2e-4395-9d6c-edca4047863f', value: 'SEED', label: 'Seed', position: 0, color: 'gray' },
-        { id: '3ca0b660-31b2-4c9c-8b83-165bd2ca5483', value: 'BRONZE', label: 'Bronze', position: 1, color: 'orange' },
-        { id: '0c321dd0-3432-4d34-af27-55e01e50c772', value: 'SILVER', label: 'Silver', position: 2, color: 'gray' },
-        { id: '28671201-8a9c-4303-85b4-e4cc225ae437', value: 'GOLD', label: 'Gold', position: 3, color: 'yellow' },
-        { id: '7435e69e-b59b-4526-adae-c13039b34e07', value: 'PLATINUM', label: 'Platinum', position: 4, color: 'blue' },
-        { id: '977459f9-18d1-472c-bb47-9377b0711963', value: 'ELITE', label: 'Elite', position: 5, color: 'purple' },
+        { id: 'f504a596-b98a-4418-9396-3c76603c2c28', value: 'CUSTOMER', label: 'Customer', position: 0, color: 'gray' },
+        { id: '01a2f838-bef1-4b6d-9d31-1a9a3bb46085', value: 'STARTER', label: 'Ambassador', position: 1, color: 'blue' },
+        { id: '6a52b692-5b95-4cc8-8e47-1e9aa450111d', value: 'BUILDER', label: 'Partner', position: 2, color: 'turquoise' },
+        { id: 'dcec77f6-afed-4c44-a5d8-9bda1bfffbb3', value: 'INFLUENCER', label: 'Influencer', position: 3, color: 'green' },
+        { id: 'fecb984b-7765-404c-abf9-09b24b121f11', value: 'PROMOTER', label: 'Leader', position: 4, color: 'yellow' },
+        { id: '295bcf50-e367-4300-b65a-c16c6ef0f5b1', value: 'LEADER', label: 'Executive', position: 5, color: 'orange' },
+        { id: '9a43cd89-2e7a-497b-8081-bf9cdeb3f5d8', value: 'DIRECTOR', label: 'Director', position: 6, color: 'pink' },
+        { id: '1edcaa06-7b2c-4cce-92e9-e05ef6e9d372', value: 'ICON', label: 'Visionary', position: 7, color: 'purple' },
       ],
     },
     {
