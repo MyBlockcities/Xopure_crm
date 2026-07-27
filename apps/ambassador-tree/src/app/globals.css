@@ -1,0 +1,641 @@
+/*
+ * XO Pure — Ambassador Tree
+ *
+ * Direction: "the water column."
+ * XO Pure is a water brand, and the comp plan is depth-gated — generation
+ * payouts depend on how deep in the genealogy you sit. So depth is the
+ * load-bearing axis and the tree is drawn hanging in a labelled water column,
+ * the way a hydrology profile plots strata. The strata are not decoration:
+ * each band is one generation, and generation is what gates the money.
+ */
+
+:root {
+  /* Surfaces — pale mineral, not paper-cream */
+  --paper: #edf2f4;
+  --panel: #f7fafb;
+  --stratum: #e3ebef;
+  --hairline: #c0cfd8;
+  --hairline-soft: #d6e0e6;
+
+  /* Ink */
+  --ink: #0b1f2a;
+  --ink-muted: #4a6472;
+  --ink-faint: #7d95a1;
+
+  /* Structure — the one reserved accent, for the selected lineage */
+  --beam: #0b4f6c;
+  --beam-glow: rgba(11, 79, 108, 0.14);
+
+  /* Status — reserved, never reused as a series colour */
+  --flag: #b3400e;
+  --flag-soft: rgba(179, 64, 14, 0.12);
+  --good: #1f6f4a;
+
+  --radius: 3px;
+  --rail: 268px;
+  --inspector: 340px;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+:root[data-theme='dark'],
+html.dark {
+  --paper: #08171f;
+  --panel: #0d2028;
+  --stratum: #0d222c;
+  --hairline: #2a4551;
+  --hairline-soft: #1c333d;
+
+  --ink: #e6f1f5;
+  --ink-muted: #93aeba;
+  --ink-faint: #63838f;
+
+  --beam: #6fd0e8;
+  --beam-glow: rgba(111, 208, 232, 0.16);
+
+  --flag: #ef7a4a;
+  --flag-soft: rgba(239, 122, 74, 0.16);
+  --good: #5bbd8c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Type scale ───────────────────────────────────────────────────────────
+ * Condensed for labels and the masthead — the register of instrument
+ * panels, where horizontal room is the scarce resource.
+ * Mono, tabular, for every figure — money must align down a column.
+ */
+
+.eyebrow {
+  font-family: var(--font-condensed), sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.masthead-title {
+  font-family: var(--font-condensed), sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.figure {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ── Shell ────────────────────────────────────────────────────────────── */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail) 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.rail {
+  border-right: 1px solid var(--hairline);
+  background: var(--panel);
+  padding: 22px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.canvas-wrap {
+  position: relative;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+/* ── Rail blocks ──────────────────────────────────────────────────────── */
+
+.rail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rail-block h2 {
+  margin: 0;
+  font-family: var(--font-condensed), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+
+.stat-row:last-child {
+  border-bottom: none;
+}
+
+.stat-label {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+.stat-value {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* A combined retail·CV figure is too wide to sit beside its label, so it
+   stacks instead of wrapping mid-number. */
+.stat-row[data-stacked='true'] {
+  display: block;
+}
+
+.stat-row[data-stacked='true'] .stat-value {
+  display: block;
+  text-align: left;
+  margin-top: 2px;
+}
+
+/* ── Rank legend: a ramp, read as a ladder ────────────────────────────── */
+
+.legend-step {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 2.5px 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: var(--radius);
+}
+
+.legend-step:hover,
+.legend-step:focus-visible {
+  color: var(--ink);
+}
+
+.legend-swatch {
+  height: 12px;
+  border-radius: 1px;
+  /* 2px surface gap between adjacent fills so the ramp reads as steps */
+  outline: 2px solid var(--panel);
+}
+
+.legend-count {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.legend-step[data-qualified='true'] .legend-swatch {
+  box-shadow: 0 0 0 1.5px var(--ink-muted);
+}
+
+.legend-note {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-faint);
+  margin: 4px 0 0;
+}
+
+/* ── Attention list ───────────────────────────────────────────────────── */
+
+/* A review queue is a to-do list, not an alarm — one small mark carries the
+   status, so eight flagged names don't shout down the rest of the rail. */
+.flag-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 2px;
+  border: none;
+  border-bottom: 1px solid var(--hairline-soft);
+  border-radius: 0;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.flag-item::before {
+  content: '';
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--flag);
+}
+
+.flag-item:hover,
+.flag-item:focus-visible {
+  color: var(--ink);
+}
+
+/* ── Controls ─────────────────────────────────────────────────────────── */
+
+.control-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  font-family: var(--font-condensed), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: border-color 140ms var(--ease), color 140ms var(--ease);
+}
+
+.btn:hover,
+.btn:focus-visible {
+  border-color: var(--beam);
+  color: var(--ink);
+}
+
+.btn[aria-pressed='true'] {
+  border-color: var(--beam);
+  color: var(--beam);
+}
+
+/* ── Canvas ───────────────────────────────────────────────────────────── */
+
+.tree-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+.tree-svg[data-panning='true'] {
+  cursor: grabbing;
+}
+
+/* The signature: one band per generation, deepening with depth — a depth
+   profile, because generation depth is what gates generation commissions.
+   Opacity is set per band on the element. */
+.stratum-band {
+  fill: var(--stratum);
+}
+
+.stratum-rule {
+  stroke: var(--hairline-soft);
+  stroke-width: 1;
+}
+
+.stratum-label {
+  font-family: var(--font-condensed), sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  fill: var(--ink-faint);
+  text-transform: uppercase;
+}
+
+.stratum-label[data-lit='true'] {
+  fill: var(--beam);
+}
+
+/* Links */
+.link {
+  fill: none;
+  stroke: var(--hairline);
+  stroke-width: 1.25;
+  transition: stroke 160ms var(--ease), opacity 160ms var(--ease);
+}
+
+.link[data-lineage='true'] {
+  stroke: var(--beam);
+  stroke-width: 2;
+}
+
+.link[data-dimmed='true'] {
+  opacity: 0.28;
+}
+
+/* Nodes */
+.node {
+  cursor: pointer;
+}
+
+.node-card {
+  fill: var(--panel);
+  stroke: var(--hairline);
+  stroke-width: 1;
+  transition: stroke 160ms var(--ease);
+}
+
+.node[data-selected='true'] .node-card,
+.node[data-lineage='true'] .node-card {
+  stroke: var(--beam);
+}
+
+.node[data-selected='true'] .node-card {
+  stroke-width: 2;
+}
+
+.node[data-dimmed='true'] {
+  opacity: 0.34;
+}
+
+.node:focus {
+  outline: none;
+}
+
+.node:focus-visible .node-card {
+  stroke: var(--beam);
+  stroke-width: 2;
+}
+
+.node-name {
+  font-family: var(--font-condensed), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+
+.node-rank {
+  font-family: var(--font-condensed), sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  fill: var(--ink-muted);
+}
+
+.node-figure {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  fill: var(--ink-muted);
+}
+
+/* Generation-qualified (internal promoter+ = display Leader+) gets a ring —
+   the colour ramp alone must never carry a threshold. */
+.rank-bar {
+  stroke: none;
+}
+
+.rank-ring {
+  fill: none;
+  stroke: var(--ink-muted);
+  stroke-width: 1.25;
+}
+
+.flag-dot {
+  fill: var(--flag);
+}
+
+.toggle {
+  fill: var(--panel);
+  stroke: var(--hairline);
+  stroke-width: 1;
+}
+
+.toggle-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+  fill: var(--ink-muted);
+  pointer-events: none;
+}
+
+.node:hover .toggle {
+  stroke: var(--beam);
+}
+
+/* ── Inspector ────────────────────────────────────────────────────────── */
+
+.inspector {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--inspector);
+  background: var(--panel);
+  border-left: 1px solid var(--hairline);
+  padding: 22px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.inspector-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: var(--radius);
+}
+
+.inspector-close:hover,
+.inspector-close:focus-visible {
+  color: var(--ink);
+}
+
+.inspector h3 {
+  font-family: var(--font-condensed), sans-serif;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding-right: 28px;
+}
+
+.rank-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-condensed), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.rank-chip::before {
+  content: '';
+  width: 20px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--chip-color, var(--hairline));
+}
+
+/* Activity strip — a 12-month sequential heat row, one hue */
+.heat-strip {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 2px;
+}
+
+.heat-cell {
+  height: 26px;
+  border-radius: 1px;
+  background: var(--cell, var(--stratum));
+}
+
+.heat-axis {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono), monospace;
+  font-size: 9.5px;
+  color: var(--ink-faint);
+  margin-top: 4px;
+}
+
+.deep-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-condensed), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--beam);
+  text-decoration: none;
+  border: 1px solid var(--beam);
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  transition: background 140ms var(--ease);
+}
+
+.deep-link:hover,
+.deep-link:focus-visible {
+  background: var(--beam-glow);
+}
+
+/* ── Notices ──────────────────────────────────────────────────────────── */
+
+.notice {
+  border: 1px solid var(--hairline);
+  border-left: 2px solid var(--flag);
+  border-radius: var(--radius);
+  background: var(--flag-soft);
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.demo-banner {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-condensed), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--flag);
+  background: var(--panel);
+  border: 1px solid var(--flag);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 40px;
+  color: var(--ink-muted);
+}
+
+/* ── Quality floor ────────────────────────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--beam);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .rail {
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+    max-height: 42vh;
+  }
+
+  .inspector {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--hairline);
+    top: auto;
+    height: 62%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -1,0 +1,24 @@
+# services/sync/railway.toml
+#
+# Twenty CRM — daily Supabase → Twenty sync (cron service)
+#
+# Keep the Railway service Root Directory at `/` so the Dockerfile can reach
+# scripts/xopure/sync-supabase-to-twenty/.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/sync/Dockerfile"
+
+[deploy]
+# Daily at 09:12 UTC — a few minutes past the hour so it does not collide with
+# the top-of-hour rush on Railway's runners, and offset from the :07 backup so
+# the two never contend for the same database.
+#
+# 09:12 UTC is ~03:12 CST, comfortably outside the Fri 00:00 → Thu 23:59 CST
+# comp week boundary, so a sync never lands mid-rollover.
+cronSchedule = "12 9 * * *"
+
+# A failed sync retries twice, then stays failed and visible rather than
+# silently skipping a day.
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 2

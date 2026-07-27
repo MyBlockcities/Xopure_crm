@@ -17,9 +17,20 @@ This app **must never write to Supabase.**
 
 ## Data access
 
-`sql/ambassador-tree.sql` is a single recursive CTE that walks `affiliates.parent_id`
-and returns the whole requested subtree annotated with depth, materialized path, and
-per-node metrics.
+Two interchangeable read-only sources, selected with `TREE_SOURCE`.
+
+**`twenty` (default and recommended).** `sql/ambassador-tree-twenty.sql` walks the
+genealogy inside Twenty's own workspace schema, following
+`_xopureAmbassador."sponsorAmbassadorExternalId"` -> `"supabaseAmbassadorId"`
+(verified 2026-07-26: resolves 211/211 on the live workspace). The XO Pure Apps SDK
+objects are already populated there — 215 ambassadors, 108 commission rows — so the
+visualization needs **no Supabase credential at all**, and every node id is directly
+deep-linkable into the CRM.
+
+**`supabase`.** `sql/ambassador-tree.sql` is the original recursive CTE over
+`affiliates.parent_id`, for reading the source of truth directly.
+
+Both return the same flat row shape, annotated with depth and per-node metrics.
 
 Why not Twenty's GraphQL: Twenty resolves relations one level at a time and rate limits
 at 100 req/min, so walking a deep downline costs a request per generation per node.
@@ -32,9 +43,13 @@ so a bad `parent_id` cycle cannot hang it.
 
 | File | Role |
 |---|---|
-| `sql/ambassador-tree.sql` | Recursive CTE — the entire tree in one read-only query |
+| `sql/ambassador-tree-twenty.sql` | Recursive CTE over the Twenty mirror (default source) |
+| `sql/ambassador-tree.sql` | Recursive CTE over Supabase `affiliates.parent_id` |
+| `sql/data-health.sql` | What the sync did not populate — surfaced, never hidden |
 | `src/lib/ranks.ts` | The 8 comp-plan ranks: keys, display names, thresholds, colours |
+| `src/lib/display.ts` | Money, rate-basis, status, comp week, PII masking (guide §2 = LAW) |
 | `src/lib/tree.ts` | Stratify flat rows → nested forest, subtree rollups, lineage, re-root |
+| `src/lib/layout.ts` | d3-hierarchy tidy-tree math, collapse state, pan/zoom viewport |
 
 ### Rank handling is load-bearing
 
@@ -55,9 +70,19 @@ never silently drop). An absent rank resolves to `starter` — missing is not un
 
 ```bash
 npm install
-npm test          # 30 tests
+npm test            # 134 tests
 npm run typecheck
+
+DEMO_MODE=1 npm run dev    # no database needed
+npm run dev                # against whatever .env.local points at
 ```
+
+### Two status vocabularies
+
+`_xopureCommission.status` in the Twenty mirror uses `PENDING`/`HELD`/`APPROVED`/`VOID`.
+Supabase `commission_ledger.status` uses `held`/`payable`/`paid`/`accrued`/`reversed`/
+`voided`. `normalizeLedgerStatus()` maps both onto the canonical set. `PENDING` maps to
+`held`, never `payable` — calling it payable would overstate what is owed.
 
 ## Environment
 
@@ -77,12 +102,17 @@ Content-Security-Policy: frame-ancestors https://crm.xopure.com
 
 ## Status
 
-- [x] Recursive CTE data query
+- [x] Recursive CTE data query (Supabase **and** Twenty sources)
 - [x] Rank ladder + display-name mapping
 - [x] Tree assembly, subtree rollups, lineage, re-rooting
-- [ ] Next.js app shell + `/api/ambassador-tree` route
-- [ ] Node-link renderer (d3-hierarchy for layout math, React for rendering)
-- [ ] Node annotation rings (tier ring, activity heatmap, revenue bar)
+- [x] Next.js app shell + `/api/ambassador-tree` route
+- [x] Node-link renderer (d3-hierarchy for layout math, React for rendering)
+- [x] Pan/zoom, expand/collapse, collapsed-descendant badges, lineage highlighting
+- [x] Inspector panel + CRM deep link
+- [x] Data-gap reporting
+- [x] **Running against live production data** (215 ambassadors, 8 generations)
+- [ ] Node annotation rings — blocked: `orderedAt` is NULL on all 128 live orders,
+      so there is no activity history to plot until the sync populates it
 - [ ] Radial, grid/block, and parallel-coordinates layout modes
 - [ ] Embed into crm.xopure.com
 

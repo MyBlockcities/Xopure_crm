@@ -34,8 +34,17 @@ export interface RankDefinition {
   readonly gvCents: number;
   /** Personal qualification purchase threshold, in cents. */
   readonly pqpCents: number;
-  /** Tier colour — one hue family per tier (design system, Phase 9). */
+  /**
+   * Rank is ORDINAL, so its colour is a single-hue sequential ramp,
+   * light → dark, not a categorical rainbow. Depth of colour = height of rank.
+   *
+   * Adjacent steps are deliberately close (that is what a ramp is), so colour
+   * is never the only encoding: the display label always renders beside the
+   * mark, which LAW §2.1 requires regardless.
+   */
   readonly color: string;
+  /** The same ramp re-stepped for a dark surface — an inversion, not a flip. */
+  readonly colorDark: string;
 }
 
 export const RANKS: Readonly<Record<RankKey, RankDefinition>> = Object.freeze({
@@ -46,7 +55,8 @@ export const RANKS: Readonly<Record<RankKey, RankDefinition>> = Object.freeze({
     customers: 0,
     gvCents: 0,
     pqpCents: 0,
-    color: '#64748b',
+    color: '#A9C6D4',
+    colorDark: '#123B50',
   },
   starter: {
     key: 'starter',
@@ -55,7 +65,8 @@ export const RANKS: Readonly<Record<RankKey, RankDefinition>> = Object.freeze({
     customers: 0,
     gvCents: 0,
     pqpCents: 8_000,
-    color: '#3b82f6',
+    color: '#7FB0C8',
+    colorDark: '#17536F',
   },
   builder: {
     key: 'builder',
@@ -64,7 +75,8 @@ export const RANKS: Readonly<Record<RankKey, RankDefinition>> = Object.freeze({
     customers: 2,
     gvCents: 50_000,
     pqpCents: 10_000,
-    color: '#06b6d4',
+    color: '#4E98BC',
+    colorDark: '#1E6E8F',
   },
   influencer: {
     key: 'influencer',
@@ -73,7 +85,8 @@ export const RANKS: Readonly<Record<RankKey, RankDefinition>> = Object.freeze({
     customers: 3,
     gvCents: 250_000,
     pqpCents: 25_000,
-    color: '#10b981',
+    color: '#1F80AC',
+    colorDark: '#2A8CB0',
   },
   promoter: {
     key: 'promoter',
@@ -82,7 +95,8 @@ export const RANKS: Readonly<Record<RankKey, RankDefinition>> = Object.freeze({
     customers: 4,
     gvCents: 500_000,
     pqpCents: 50_000,
-    color: '#eab308',
+    color: '#0E6A95',
+    colorDark: '#4EA7C8',
   },
   leader: {
     key: 'leader',
@@ -91,7 +105,8 @@ export const RANKS: Readonly<Record<RankKey, RankDefinition>> = Object.freeze({
     customers: 5,
     gvCents: 1_000_000,
     pqpCents: 50_000,
-    color: '#f97316',
+    color: '#0A557B',
+    colorDark: '#7CC3DC',
   },
   director: {
     key: 'director',
@@ -100,7 +115,8 @@ export const RANKS: Readonly<Record<RankKey, RankDefinition>> = Object.freeze({
     customers: 6,
     gvCents: 2_500_000,
     pqpCents: 50_000,
-    color: '#ec4899',
+    color: '#08405F',
+    colorDark: '#AEDCEC',
   },
   icon: {
     key: 'icon',
@@ -109,7 +125,8 @@ export const RANKS: Readonly<Record<RankKey, RankDefinition>> = Object.freeze({
     customers: 8,
     gvCents: 5_000_000,
     pqpCents: 50_000,
-    color: '#a855f7',
+    color: '#052C43',
+    colorDark: '#DCF1F8',
   },
 });
 

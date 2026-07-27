@@ -8,7 +8,8 @@
 //   VITE_SUPABASE_URL        Supabase REST URL
 //   SUPABASE_SERVICE_ROLE_KEY Supabase service role key for REST reads
 //   TWENTY_PG_URL            Twenty (Railway) Postgres connection string (DATABASE_PUBLIC_URL)
-//   TWENTY_WORKSPACE_SCHEMA  e.g. workspace_5pedu4dl120j0zsebvp6nap5w
+//   TWENTY_WORKSPACE_SCHEMA  REQUIRED, no default. Live value as of 2026-07-26:
+//                            workspace_<your-workspace-id> (database twenty_v2).
 //
 // Optional env:
 //   SUPABASE_PG_URL          Legacy Supabase Postgres connection string.
@@ -100,9 +101,19 @@ const TWENTY_PG_URL =
   process.env.DATABASE_PUBLIC_URL ??
   process.env.PG_DATABASE_URL ??
   getRailwayPostgresPublicUrl();
-const WS =
-  process.env.TWENTY_WORKSPACE_SCHEMA ??
-  'workspace_5pedu4dl120j0zsebvp6nap5w';
+// No default. The previous fallback was `workspace_5pedu4dl120j0zsebvp6nap5w`,
+// which belongs to the ORPHANED `railway` database — not the live `twenty_v2`
+// one (verified 2026-07-26; live schema is workspace_<your-workspace-id>).
+// A wrong-but-plausible default silently syncs into a dead workspace, so this
+// is now required and validated instead.
+const WS = process.env.TWENTY_WORKSPACE_SCHEMA;
+
+if (WS && !/^workspace_[a-z0-9]+$/.test(WS)) {
+  console.error(
+    `TWENTY_WORKSPACE_SCHEMA "${WS}" is not a valid workspace schema name.`,
+  );
+  process.exit(1);
+}
 const DRY_RUN = process.env.DRY_RUN === '1';
 const IMPORTED_BY_NAME = process.env.IMPORTED_BY_NAME ?? 'Supabase Sync';
 const DEFAULT_CURRENCY_CODE = process.env.TWENTY_DEFAULT_CURRENCY_CODE ?? 'USD';
@@ -124,7 +135,10 @@ const PERIOD_TABLE = process.env.TWENTY_PERIOD_TABLE ?? null;
 
 if (!TWENTY_PG_URL || !WS) {
   console.error(
-    'Missing env. Need TWENTY_PG_URL and TWENTY_WORKSPACE_SCHEMA.',
+    'Missing env. Need TWENTY_PG_URL and TWENTY_WORKSPACE_SCHEMA.\n' +
+      'TWENTY_WORKSPACE_SCHEMA no longer defaults — the old default pointed at\n' +
+      'the orphaned `railway` database. Find the live value with:\n' +
+      "  psql \"$TWENTY_PG_URL\" -tAc \"select nspname from pg_namespace where nspname like 'workspace_%';\"",
   );
   process.exit(1);
 }

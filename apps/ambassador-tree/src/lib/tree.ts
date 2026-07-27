@@ -21,7 +21,7 @@ export interface MonthlyActivity {
 export interface AmbassadorRow {
   readonly id: string;
   readonly parent_id: string | null;
-  readonly depth: number;
+  readonly depth: number | string;
   readonly name: string | null;
   readonly email: string | null;
   readonly status: string | null;
@@ -29,11 +29,11 @@ export interface AmbassadorRow {
   readonly paid_as_rank_key: string | null;
   readonly career_rank_key: string | null;
   readonly rank_key: string | null;
-  readonly active_customer_count: number | null;
-  readonly retail_cents: number | null;
-  readonly cv_cents: number | null;
-  readonly order_count: number | null;
-  readonly commission_lifetime_cents: number | null;
+  readonly active_customer_count: number | string | null;
+  readonly retail_cents: number | string | null;
+  readonly cv_cents: number | string | null;
+  readonly order_count: number | string | null;
+  readonly commission_lifetime_cents: number | string | null;
   readonly needs_sponsor_review: boolean | null;
   readonly joined_at: string | null;
   readonly last_order_at: string | null;
@@ -92,8 +92,25 @@ export interface BuildTreeResult {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const num = (value: number | null | undefined): number =>
-  typeof value === 'number' && Number.isFinite(value) ? value : 0;
+/**
+ * Coerce a driver-supplied numeric to a number.
+ *
+ * node-postgres returns `bigint`/`numeric` as STRINGS to avoid silent precision
+ * loss, so a `SUM(...)::bigint` arrives as "1311300", not 1311300. Rejecting
+ * those would zero out every rolled-up money figure — which is exactly the bug
+ * this guards against. Anything genuinely non-numeric still becomes 0.
+ */
+const num = (value: number | string | null | undefined): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+};
 
 const displayName = (row: AmbassadorRow): string =>
   row.name?.trim() || row.email?.trim() || `Ambassador ${row.id.slice(0, 8)}`;

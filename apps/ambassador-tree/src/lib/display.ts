@@ -349,17 +349,48 @@ export const LEDGER_STATUS_LABELS: Readonly<Record<LedgerStatus, string>> =
     voided: 'Voided',
   });
 
-export const ledgerStatusLabel = (status: unknown): string => {
-  const key = String(status ?? '').trim().toLowerCase() as LedgerStatus;
+/**
+ * The Twenty mirror (`_xopureCommission.status`) does NOT use the Supabase
+ * `commission_ledger` vocabulary the guide documents. Live values are
+ * `PENDING` / `HELD` / `APPROVED` / `VOID`. Translate explicitly rather than
+ * letting two thirds of the ledger render as "unknown".
+ *
+ * `PENDING` maps to `held`, not `payable`: it is money that has not been
+ * released, and calling it payable would overstate what is owed. The weekly
+ * vs monthly split does not depend on this mapping — `summarizeLedger` routes
+ * by pay area, so generation stays on the monthly rail regardless (§2.5).
+ */
+const MIRROR_STATUS_ALIASES: Readonly<Record<string, LedgerStatus>> = Object.freeze({
+  pending: 'held',
+  held: 'held',
+  approved: 'payable',
+  payable: 'payable',
+  paid: 'paid',
+  accrued: 'accrued',
+  reversed: 'reversed',
+  void: 'voided',
+  voided: 'voided',
+});
 
-  return LEDGER_STATUS_LABELS[key] ?? `⚠ Unknown status: ${String(status)}`;
+/** Canonical status for a row from either source, or null if unrecognised. */
+export const normalizeLedgerStatus = (status: unknown): LedgerStatus | null =>
+  MIRROR_STATUS_ALIASES[String(status ?? '').trim().toLowerCase()] ?? null;
+
+export const ledgerStatusLabel = (status: unknown): string => {
+  const key = normalizeLedgerStatus(status);
+
+  // §2.6: an unrecognised status is surfaced, never quietly rendered as fine.
+  return key ? LEDGER_STATUS_LABELS[key] : `⚠ Unknown status: ${String(status)}`;
 };
 
 /** Statuses that represent real, countable money. */
 const LIVE_STATUSES = new Set<LedgerStatus>(['held', 'payable', 'paid', 'accrued']);
 
-export const isLiveStatus = (status: unknown): boolean =>
-  LIVE_STATUSES.has(String(status ?? '').toLowerCase() as LedgerStatus);
+export const isLiveStatus = (status: unknown): boolean => {
+  const key = normalizeLedgerStatus(status);
+
+  return key !== null && LIVE_STATUSES.has(key);
+};
 
 // ─── Totals (§2.5: generation is monthly and must stay separate) ────────────
 
@@ -408,7 +439,7 @@ export const summarizeLedger = (
 
   for (const row of rows) {
     const amount = typeof row.amount_cents === 'number' ? row.amount_cents : 0;
-    const status = String(row.status ?? '').toLowerCase();
+    const status = normalizeLedgerStatus(row.status) ?? '';
 
     if (payAreaOrUnmapped(row.pay_area).unmapped) unmappedRows.push(row);
 

@@ -2,14 +2,23 @@ import { defineObject, FieldType } from 'twenty-sdk/define';
 
 export const XOPURE_AMBASSADOR_OBJECT_ID = 'edcc4b8c-e7eb-4d71-9c09-c2a46bb7b334';
 export const XOPURE_AMBASSADOR_NAME_FIELD_ID = '2e504ddb-eee1-4ce2-af0b-8dc9b0df3e04';
+// These are the LIVE field identities in workspace_<your-workspace-id>.
+// They were previously authored against the orphaned `railway` workspace, which
+// would have renamed `level` into `paidAsRank` and orphaned all 215 real rank
+// values. Verified against production 2026-07-26 — do not change without
+// re-checking core."fieldMetadata".
 export const XOPURE_AMBASSADOR_PAID_AS_RANK_FIELD_ID =
-  '1e0f5ff7-5e98-414c-9a2a-09260d916bbc';
+  '3a17e380-ceb4-4a25-89b3-111ab14e4bac';
 
-/** @deprecated Renamed to XOPURE_AMBASSADOR_PAID_AS_RANK_FIELD_ID. Same UUID, kept for import compatibility. */
+/**
+ * The legacy `level` field, which holds the fictional SEED/SILVER/GOLD/ELITE
+ * tiers. It is a SEPARATE field from paidAsRank — never reuse this UUID.
+ * Retire it only once nothing reads it.
+ */
 export const XOPURE_AMBASSADOR_LEVEL_FIELD_ID =
-  XOPURE_AMBASSADOR_PAID_AS_RANK_FIELD_ID;
+  '1e0f5ff7-5e98-414c-9a2a-09260d916bbc';
 export const XOPURE_AMBASSADOR_CAREER_RANK_FIELD_ID =
-  '9c8ca49d-e5ec-4b16-b9d7-eebba3422a40';
+  'e2b5250b-71ab-46c9-919d-da4c3eaf3e3d';
 export const XOPURE_AMBASSADOR_STATUS_FIELD_ID = '88af418d-b7af-419e-a546-42fd1a92fc08';
 export const XOPURE_AMBASSADOR_ATTRIBUTED_REVENUE_FIELD_ID =
   '6cdfdeac-23c4-4bb1-b61c-e2ed179b25ba';
@@ -37,16 +46,16 @@ export default defineObject({
       icon: 'IconAward',
       description:
         'Comp-plan rank this ambassador is paid at. Mirrors Supabase affiliates.paid_as_rank. Values are the PERMANENT internal keys; labels are the spec display names (COMP_PLAN_LAW §1.5). Never surface the raw value.',
-      defaultValue: "'STARTER'",
+      defaultValue: "'starter'",
       options: [
-        { id: 'f504a596-b98a-4418-9396-3c76603c2c28', value: 'CUSTOMER', label: 'Customer', position: 0, color: 'gray' },
-        { id: '01a2f838-bef1-4b6d-9d31-1a9a3bb46085', value: 'STARTER', label: 'Ambassador', position: 1, color: 'blue' },
-        { id: '6a52b692-5b95-4cc8-8e47-1e9aa450111d', value: 'BUILDER', label: 'Partner', position: 2, color: 'turquoise' },
-        { id: 'dcec77f6-afed-4c44-a5d8-9bda1bfffbb3', value: 'INFLUENCER', label: 'Influencer', position: 3, color: 'green' },
-        { id: 'fecb984b-7765-404c-abf9-09b24b121f11', value: 'PROMOTER', label: 'Leader', position: 4, color: 'yellow' },
-        { id: '295bcf50-e367-4300-b65a-c16c6ef0f5b1', value: 'LEADER', label: 'Executive', position: 5, color: 'orange' },
-        { id: '9a43cd89-2e7a-497b-8081-bf9cdeb3f5d8', value: 'DIRECTOR', label: 'Director', position: 6, color: 'pink' },
-        { id: '1edcaa06-7b2c-4cce-92e9-e05ef6e9d372', value: 'ICON', label: 'Visionary', position: 7, color: 'purple' },
+        { id: 'f504a596-b98a-4418-9396-3c76603c2c28', value: 'customer', label: 'Customer', position: 0, color: 'gray' },
+        { id: '01a2f838-bef1-4b6d-9d31-1a9a3bb46085', value: 'starter', label: 'Ambassador', position: 1, color: 'blue' },
+        { id: '6a52b692-5b95-4cc8-8e47-1e9aa450111d', value: 'builder', label: 'Partner', position: 2, color: 'turquoise' },
+        { id: 'dcec77f6-afed-4c44-a5d8-9bda1bfffbb3', value: 'influencer', label: 'Influencer', position: 3, color: 'green' },
+        { id: 'fecb984b-7765-404c-abf9-09b24b121f11', value: 'promoter', label: 'Leader', position: 4, color: 'yellow' },
+        { id: '295bcf50-e367-4300-b65a-c16c6ef0f5b1', value: 'leader', label: 'Executive', position: 5, color: 'orange' },
+        { id: '9a43cd89-2e7a-497b-8081-bf9cdeb3f5d8', value: 'director', label: 'Director', position: 6, color: 'pink' },
+        { id: '1edcaa06-7b2c-4cce-92e9-e05ef6e9d372', value: 'icon', label: 'Visionary', position: 7, color: 'purple' },
       ],
     },
     {
@@ -72,16 +81,16 @@ export default defineObject({
       icon: 'IconTrophy',
       description:
         'Highest rank ever achieved. Mirrors Supabase affiliates.career_rank. Rank is never retro-revoked (COMP_PLAN_LAW §1.6), so this only ever moves up.',
-      defaultValue: "'STARTER'",
+      defaultValue: "'starter'",
       options: [
-        { id: 'c68bf210-179d-4a18-a820-66c45b2a55fb', value: 'CUSTOMER', label: 'Customer', position: 0, color: 'gray' },
-        { id: '825b8c65-099e-47a2-bbb1-e8b493129ed9', value: 'STARTER', label: 'Ambassador', position: 1, color: 'blue' },
-        { id: '06159b5b-eed6-4d7d-bf5e-e3ad8f44f469', value: 'BUILDER', label: 'Partner', position: 2, color: 'turquoise' },
-        { id: '2eed7925-4175-448f-ac9d-492c3e9fe400', value: 'INFLUENCER', label: 'Influencer', position: 3, color: 'green' },
-        { id: 'a7d53e2e-a3a2-4351-a45f-2b0aa536ec61', value: 'PROMOTER', label: 'Leader', position: 4, color: 'yellow' },
-        { id: 'e88d121e-94c9-4b84-9752-329aa2f989c0', value: 'LEADER', label: 'Executive', position: 5, color: 'orange' },
-        { id: '33c61a7c-3e6d-4b62-b9a3-6cb50a294e5b', value: 'DIRECTOR', label: 'Director', position: 6, color: 'pink' },
-        { id: 'ad271ea0-d156-4ef1-bafb-aba035b0924b', value: 'ICON', label: 'Visionary', position: 7, color: 'purple' },
+        { id: 'c68bf210-179d-4a18-a820-66c45b2a55fb', value: 'customer', label: 'Customer', position: 0, color: 'gray' },
+        { id: '825b8c65-099e-47a2-bbb1-e8b493129ed9', value: 'starter', label: 'Ambassador', position: 1, color: 'blue' },
+        { id: '06159b5b-eed6-4d7d-bf5e-e3ad8f44f469', value: 'builder', label: 'Partner', position: 2, color: 'turquoise' },
+        { id: '2eed7925-4175-448f-ac9d-492c3e9fe400', value: 'influencer', label: 'Influencer', position: 3, color: 'green' },
+        { id: 'a7d53e2e-a3a2-4351-a45f-2b0aa536ec61', value: 'promoter', label: 'Leader', position: 4, color: 'yellow' },
+        { id: 'e88d121e-94c9-4b84-9752-329aa2f989c0', value: 'leader', label: 'Executive', position: 5, color: 'orange' },
+        { id: '33c61a7c-3e6d-4b62-b9a3-6cb50a294e5b', value: 'director', label: 'Director', position: 6, color: 'pink' },
+        { id: 'ad271ea0-d156-4ef1-bafb-aba035b0924b', value: 'icon', label: 'Visionary', position: 7, color: 'purple' },
       ],
     },
     {
@@ -105,10 +114,10 @@ export default defineObject({
     { universalIdentifier: XOPURE_AMBASSADOR_TOTAL_COMMISSION_EARNED_FIELD_ID, type: FieldType.NUMBER, name: 'totalCommissionEarned', label: 'Commission earned', icon: 'IconCash', defaultValue: 0 },
 
     // ── Eligibility & volumes (COMP_PLAN_LAW §1.3) ──────────────────────────
-    { universalIdentifier: '88ca5d2c-9358-40bd-b493-84d471ffd6a9', type: FieldType.NUMBER, name: 'activeCustomerCount', label: 'Active customers', icon: 'IconUsers', defaultValue: 0, description: 'Counts toward the rank customer requirement.' },
+    { universalIdentifier: '0bbbc460-fa56-4864-b855-d176928c086f', type: FieldType.NUMBER, name: 'activeCustomerCount', label: 'Active customers', icon: 'IconUsers', defaultValue: 0, description: 'Counts toward the rank customer requirement.' },
     { universalIdentifier: '149b4bf7-6b26-4d3e-86da-60d05599f93c', type: FieldType.NUMBER, name: 'enrollmentCount', label: 'Enrollments', icon: 'IconUserPlus', defaultValue: 0 },
-    { universalIdentifier: '992e95d3-6a82-4061-95f8-d96c7df7c318', type: FieldType.CURRENCY, name: 'personalVolume', label: 'Personal volume', icon: 'IconCoin', description: 'affiliates.personal_volume_cents. Stored in cents upstream.' },
-    { universalIdentifier: 'fa60a379-0c15-49a3-86a0-d277e50851dc', type: FieldType.CURRENCY, name: 'teamVolume', label: 'Team volume', icon: 'IconCoins', description: 'affiliates.team_volume_cents.' },
+    { universalIdentifier: '8b8480cd-4bd2-45b3-9ad4-e8ed84ef0f42', type: FieldType.CURRENCY, name: 'personalVolume', label: 'Personal volume', icon: 'IconCoin', description: 'affiliates.personal_volume_cents. Stored in cents upstream.' },
+    { universalIdentifier: '67dd5fb1-878a-44e1-a299-2103550fdaf9', type: FieldType.CURRENCY, name: 'teamVolume', label: 'Team volume', icon: 'IconCoins', description: 'affiliates.team_volume_cents.' },
     { universalIdentifier: '5dd67a21-8610-4aef-b07b-b78388007ee2', type: FieldType.CURRENCY, name: 'monthlyPvCv', label: 'Monthly PV (CV)', icon: 'IconChartBar', description: 'affiliates.monthly_pv_cv_cents. CV basis = 50% of retail.' },
     { universalIdentifier: '17d16503-6e86-406c-8bdd-dfa66b30431f', type: FieldType.CURRENCY, name: 'monthlyGvCv', label: 'Monthly GV (CV)', icon: 'IconChartAreaLine', description: 'affiliates.monthly_gv_cv_cents. Drives the rank GV threshold.' },
 

@@ -12,6 +12,7 @@ import {
 import {
   type AmbassadorRow,
   buildTree,
+  type TreeNode,
   findCycleIds,
   findNode,
   flatten,
@@ -287,5 +288,46 @@ describe('findCycleIds', () => {
       row('clean', null, 0),
     ]);
     expect(ids.sort()).toEqual(['x', 'y', 'z']);
+  });
+});
+
+// ─── Driver numeric coercion ────────────────────────────────────────────────
+// node-postgres returns bigint/numeric as strings. If those are not coerced,
+// every rolled-up money figure silently reads as $0.00.
+
+describe('bigint-as-string rows from node-postgres', () => {
+  const stringy = buildTree([
+    row('a', null, 0, {
+      retail_cents: '1311300',
+      cv_cents: '655650',
+      order_count: '4',
+      commission_lifetime_cents: '89624',
+      active_customer_count: '7',
+    }),
+    row('b', 'a', 1, { retail_cents: '1000', cv_cents: '500', order_count: '1' }),
+  ]);
+
+  const root = stringy.roots[0] as TreeNode;
+
+  it('parses string money into self metrics', () => {
+    expect(root.self.retailCents).toBe(1_311_300);
+    expect(root.self.cvCents).toBe(655_650);
+    expect(root.self.commissionLifetimeCents).toBe(89_624);
+  });
+
+  it('parses string counts', () => {
+    expect(root.self.orderCount).toBe(4);
+    expect(root.self.activeCustomerCount).toBe(7);
+  });
+
+  it('sums string values across the subtree rather than zeroing them', () => {
+    expect(root.subtree.retailCents).toBe(1_312_300);
+    expect(root.subtree.orderCount).toBe(5);
+  });
+
+  it('still treats genuine non-numerics as 0', () => {
+    const junk = buildTree([row('x', null, 0, { retail_cents: 'not-a-number' })]);
+
+    expect((junk.roots[0] as TreeNode).self.retailCents).toBe(0);
   });
 });
