@@ -95,6 +95,23 @@ TREE_MAX_DEPTH       # default walk depth for lazy loading
 TREE_EXPORTS_ENABLED # set to 1 to enable server-generated downloads outside demo mode
 ```
 
+## Railway deployment
+
+Use the same GitHub repository as Twenty, but create a separate Railway service
+whose root directory is `/apps/ambassador-tree`. The checked-in
+`railway.toml` builds and starts only this Next.js application.
+
+Recommended service name and domain:
+
+```text
+Service: ambassador-tree
+Domain:  tree.crm.xopure.com
+```
+
+The service should reference `crm-v2.PG_DATABASE_URL` internally rather than
+copying a public database URL. Do not expose the custom domain until an
+authentication/access policy is active.
+
 ## Visualization modes and exports
 
 The original horizontal genealogy remains the default. The **Radial** view is
