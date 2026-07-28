@@ -96,6 +96,9 @@ commission_metrics AS (
     SELECT
         amb.id                                          AS ambassador_id,
         COALESCE(SUM(c."amountCents") FILTER (
+            WHERE c.status::text = 'PAID'
+        ), 0)::bigint                                   AS paid_cents,
+        COALESCE(SUM(c."amountCents") FILTER (
             WHERE c.status::text = 'APPROVED'
               AND c."payArea"::text NOT LIKE 'GENERATION%'
         ), 0)::bigint                                   AS payable_cents,
@@ -181,6 +184,7 @@ SELECT
     -- payable / held / accrued split below.
     COALESCE(cm.lifetime_cents, 0)::bigint      AS commission_lifetime_cents,
 
+    COALESCE(cm.paid_cents, 0)::bigint                  AS commission_paid_cents,
     COALESCE(cm.payable_cents, 0)::bigint               AS commission_payable_cents,
     COALESCE(cm.held_cents, 0)::bigint                  AS commission_held_cents,
     COALESCE(cm.accrued_generation_cents, 0)::bigint    AS commission_accrued_generation_cents,

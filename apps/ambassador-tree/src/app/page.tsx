@@ -22,6 +22,9 @@ const Page = async ({ searchParams }: PageProps) => {
       <TreeExplorer
         payload={payload}
         crmBaseUrl={process.env.TWENTY_BASE_URL ?? null}
+        exportsEnabled={
+          process.env.TREE_EXPORTS_ENABLED === '1' || payload.source === 'demo'
+        }
       />
     );
   } catch (error) {

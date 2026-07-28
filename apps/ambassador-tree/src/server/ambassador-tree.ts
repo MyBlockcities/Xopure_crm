@@ -34,6 +34,11 @@ export interface DataHealth {
   readonly commissionsTotal: number;
   readonly commissionsMissingPayArea: number;
   readonly ambassadorsBrokenSponsor: number;
+  /**
+   * False until the mirror carries the source earning timestamp needed to
+   * assign every ledger row to the fixed-CST compensation week.
+   */
+  readonly commissionTimelineAvailable: boolean;
 }
 
 export interface TreePayload {
@@ -158,6 +163,7 @@ const loadHealth = async (): Promise<DataHealth | null> => {
       commissionsTotal: toInt(row.commissions_total),
       commissionsMissingPayArea: toInt(row.commissions_missing_pay_area),
       ambassadorsBrokenSponsor: toInt(row.ambassadors_broken_sponsor),
+      commissionTimelineAvailable: false,
     };
   } catch (error) {
     console.warn('[ambassador-tree] data health unavailable', error);

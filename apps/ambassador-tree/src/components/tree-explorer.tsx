@@ -7,6 +7,7 @@ import { type RankKey, RANK_KEYS } from '../lib/ranks';
 import { findNode, flatten, lineageOf, type TreeNode } from '../lib/tree';
 import { type TreePayload } from '../server/ambassador-tree';
 import { Inspector } from './inspector';
+import { RadialTreeCanvas } from './radial-tree-canvas';
 import { Rail } from './rail';
 import { TreeCanvas } from './tree-canvas';
 
@@ -14,6 +15,7 @@ interface TreeExplorerProps {
   readonly payload: TreePayload;
   /** Twenty base URL, for record deep links. */
   readonly crmBaseUrl: string | null;
+  readonly exportsEnabled: boolean;
 }
 
 /** Generations visible before the tree folds — three reads without scrolling. */
@@ -22,11 +24,18 @@ const INITIAL_VISIBLE_DEPTH = 2;
 /** Must match --inspector in globals.css. */
 const INSPECTOR_WIDTH = 340;
 
-export const TreeExplorer = ({ payload, crmBaseUrl }: TreeExplorerProps) => {
+export const TreeExplorer = ({
+  payload,
+  crmBaseUrl,
+  exportsEnabled,
+}: TreeExplorerProps) => {
   const [reRootId, setReRootId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [fitToken, setFitToken] = useState(0);
   const [dark, setDark] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<'genealogy' | 'radial'>(
+    'genealogy',
+  );
 
   // Follow the host's colour scheme so the embed matches Twenty.
   useEffect(() => {
@@ -147,6 +156,10 @@ export const TreeExplorer = ({ payload, crmBaseUrl }: TreeExplorerProps) => {
         orphanIds={payload.orphanIds}
         health={payload.health}
         dark={dark}
+        layoutMode={layoutMode}
+        onLayoutMode={setLayoutMode}
+        exportsEnabled={exportsEnabled}
+        exportRootId={payload.rootId}
         onSelect={select}
         onExpandAll={expandAll}
         onCollapseAll={collapseAll}
@@ -181,6 +194,17 @@ export const TreeExplorer = ({ payload, crmBaseUrl }: TreeExplorerProps) => {
               the read-only role can see the affiliates table.
             </p>
           </div>
+        ) : layoutMode === 'radial' ? (
+          <RadialTreeCanvas
+            roots={roots}
+            collapsed={collapsed}
+            selectedId={selectedId}
+            lineageIds={lineageIds}
+            dark={dark}
+            onSelect={select}
+            onToggle={toggle}
+            obscuredRight={selected ? INSPECTOR_WIDTH : 0}
+          />
         ) : (
           <TreeCanvas
             roots={roots}

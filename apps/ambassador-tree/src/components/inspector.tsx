@@ -47,6 +47,33 @@ export const Inspector = ({
   const swatch = dark ? rank.colorDark : rank.color;
   const activity = node.monthlyActivity.slice(-12);
   const peak = Math.max(1, ...activity.map((m) => m.retailCents));
+  const financialRail = [
+    {
+      key: 'paid',
+      label: 'Paid',
+      value: node.self.commissionPaidCents,
+      color: 'var(--financial-paid)',
+    },
+    {
+      key: 'payable',
+      label: 'Payable · next Friday',
+      value: node.self.commissionPayableCents,
+      color: 'var(--financial-payable)',
+    },
+    {
+      key: 'held',
+      label: 'Clearing · 7-day hold',
+      value: node.self.commissionHeldCents,
+      color: 'var(--financial-held)',
+    },
+    {
+      key: 'generation',
+      label: 'Generation · monthly',
+      value: node.self.commissionAccruedGenerationCents,
+      color: 'var(--financial-generation)',
+    },
+  ] as const;
+  const financialTotal = financialRail.reduce((sum, item) => sum + item.value, 0);
 
   return (
     <aside className="inspector" aria-label={`Details for ${node.name}`}>
@@ -94,6 +121,49 @@ export const Inspector = ({
             value={formatCents(node.self.commissionLifetimeCents)}
           />
         </div>
+      </section>
+
+      <section className="rail-block">
+        <div className="section-heading-row">
+          <h2>Commission rails</h2>
+          <span className="data-badge">Live ledger</span>
+        </div>
+        <div
+          className="financial-track"
+          role="img"
+          aria-label={financialRail
+            .map((item) => `${item.label}: ${formatCents(item.value)}`)
+            .join('; ')}
+        >
+          {financialRail.map((item) =>
+            item.value > 0 ? (
+              <span
+                key={item.key}
+                style={{
+                  background: item.color,
+                  width: `${(item.value / Math.max(1, financialTotal)) * 100}%`,
+                }}
+              />
+            ) : null,
+          )}
+        </div>
+        <div className="financial-legend">
+          {financialRail.map((item) => (
+            <div className="financial-row" key={item.key}>
+              <span
+                className="financial-dot"
+                style={{ background: item.color }}
+                aria-hidden="true"
+              />
+              <span>{item.label}</span>
+              <strong className="figure">{formatCents(item.value)}</strong>
+            </div>
+          ))}
+        </div>
+        <p className="legend-note">
+          Weekly payable and clearing exclude generation. Generation remains on
+          its monthly rail and pays on the 5th.
+        </p>
       </section>
 
       <section className="rail-block">

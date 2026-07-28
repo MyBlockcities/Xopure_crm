@@ -34,6 +34,10 @@ export interface AmbassadorRow {
   readonly cv_cents: number | string | null;
   readonly order_count: number | string | null;
   readonly commission_lifetime_cents: number | string | null;
+  readonly commission_paid_cents?: number | string | null;
+  readonly commission_payable_cents?: number | string | null;
+  readonly commission_held_cents?: number | string | null;
+  readonly commission_accrued_generation_cents?: number | string | null;
   readonly needs_sponsor_review: boolean | null;
   readonly joined_at: string | null;
   readonly last_order_at: string | null;
@@ -46,6 +50,13 @@ export interface SelfMetrics {
   readonly retailCents: number;
   readonly cvCents: number;
   readonly commissionLifetimeCents: number;
+  readonly commissionPaidCents: number;
+  /** Weekly rail only; generation is kept in commissionAccruedGenerationCents. */
+  readonly commissionPayableCents: number;
+  /** Weekly clearing rail only; generation is kept separate. */
+  readonly commissionHeldCents: number;
+  /** Monthly generation rail; never include this in weekly payable. */
+  readonly commissionAccruedGenerationCents: number;
   readonly activeCustomerCount: number;
 }
 
@@ -57,6 +68,10 @@ export interface SubtreeMetrics {
   readonly retailCents: number;
   readonly cvCents: number;
   readonly commissionLifetimeCents: number;
+  readonly commissionPaidCents: number;
+  readonly commissionPayableCents: number;
+  readonly commissionHeldCents: number;
+  readonly commissionAccruedGenerationCents: number;
   readonly orderCount: number;
   readonly activeCustomerCount: number;
 }
@@ -192,6 +207,12 @@ export const buildTree = (rows: readonly AmbassadorRow[]): BuildTreeResult => {
         retailCents: num(row.retail_cents),
         cvCents: num(row.cv_cents),
         commissionLifetimeCents: num(row.commission_lifetime_cents),
+        commissionPaidCents: num(row.commission_paid_cents),
+        commissionPayableCents: num(row.commission_payable_cents),
+        commissionHeldCents: num(row.commission_held_cents),
+        commissionAccruedGenerationCents: num(
+          row.commission_accrued_generation_cents,
+        ),
         activeCustomerCount: num(row.active_customer_count),
       },
       // Placeholder; replaced by the bottom-up pass below.
@@ -202,6 +223,10 @@ export const buildTree = (rows: readonly AmbassadorRow[]): BuildTreeResult => {
         retailCents: 0,
         cvCents: 0,
         commissionLifetimeCents: 0,
+        commissionPaidCents: 0,
+        commissionPayableCents: 0,
+        commissionHeldCents: 0,
+        commissionAccruedGenerationCents: 0,
         orderCount: 0,
         activeCustomerCount: 0,
       },
@@ -253,6 +278,11 @@ export const buildTree = (rows: readonly AmbassadorRow[]): BuildTreeResult => {
     let retailCents = node.self.retailCents;
     let cvCents = node.self.cvCents;
     let commissionLifetimeCents = node.self.commissionLifetimeCents;
+    let commissionPaidCents = node.self.commissionPaidCents;
+    let commissionPayableCents = node.self.commissionPayableCents;
+    let commissionHeldCents = node.self.commissionHeldCents;
+    let commissionAccruedGenerationCents =
+      node.self.commissionAccruedGenerationCents;
     let orderCount = node.self.orderCount;
     let activeCustomerCount = node.self.activeCustomerCount;
 
@@ -262,6 +292,11 @@ export const buildTree = (rows: readonly AmbassadorRow[]): BuildTreeResult => {
       retailCents += child.subtree.retailCents;
       cvCents += child.subtree.cvCents;
       commissionLifetimeCents += child.subtree.commissionLifetimeCents;
+      commissionPaidCents += child.subtree.commissionPaidCents;
+      commissionPayableCents += child.subtree.commissionPayableCents;
+      commissionHeldCents += child.subtree.commissionHeldCents;
+      commissionAccruedGenerationCents +=
+        child.subtree.commissionAccruedGenerationCents;
       orderCount += child.subtree.orderCount;
       activeCustomerCount += child.subtree.activeCustomerCount;
     }
@@ -273,6 +308,10 @@ export const buildTree = (rows: readonly AmbassadorRow[]): BuildTreeResult => {
       retailCents,
       cvCents,
       commissionLifetimeCents,
+      commissionPaidCents,
+      commissionPayableCents,
+      commissionHeldCents,
+      commissionAccruedGenerationCents,
       orderCount,
       activeCustomerCount,
     };

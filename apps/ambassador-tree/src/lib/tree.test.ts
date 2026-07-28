@@ -176,6 +176,32 @@ describe('buildTree', () => {
     expect(roots[0].subtree.retailCents).toBe(6300);
   });
 
+  it('rolls up each commission rail without mixing weekly and monthly money', () => {
+    const { roots } = buildTree([
+      row('a', null, 0, {
+        commission_paid_cents: 100,
+        commission_payable_cents: 200,
+        commission_held_cents: 300,
+        commission_accrued_generation_cents: 400,
+      }),
+      row('b', 'a', 1, {
+        commission_paid_cents: 10,
+        commission_payable_cents: 20,
+        commission_held_cents: 30,
+        commission_accrued_generation_cents: 40,
+      }),
+    ]);
+
+    expect(roots[0].subtree).toMatchObject({
+      commissionPaidCents: 110,
+      commissionPayableCents: 220,
+      commissionHeldCents: 330,
+      commissionAccruedGenerationCents: 440,
+    });
+    expect(roots[0].self.commissionPayableCents).toBe(200);
+    expect(roots[0].self.commissionAccruedGenerationCents).toBe(400);
+  });
+
   it('supports a forest with several roots', () => {
     const { roots } = buildTree([
       row('r1', null, 0),

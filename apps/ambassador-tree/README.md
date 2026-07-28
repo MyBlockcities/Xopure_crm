@@ -92,7 +92,36 @@ Server-side only — never expose these to the browser:
 SUPABASE_DB_URL      # crm_readonly connection string, SSL required
 TWENTY_BASE_URL      # https://crm.xopure.com — for record deep links
 TREE_MAX_DEPTH       # default walk depth for lazy loading
+TREE_EXPORTS_ENABLED # set to 1 to enable server-generated downloads outside demo mode
 ```
+
+## Visualization modes and exports
+
+The original horizontal genealogy remains the default. The **Radial** view is
+an additive client-side layout over the same validated `TreeNode` data; it does
+not query or mutate another source.
+
+When `TREE_EXPORTS_ENABLED=1`, the read-only endpoint
+`/api/tree-export?format=<format>` supports:
+
+- `json` — lossless versioned XO Pure visualization graph
+- `newick` — topology keyed by stable CRM ids
+- `nexus` — rooted topology plus stable-id/display-label notes
+- `phyloxml` — rich labels, ranks, metrics, and colors
+- `svg` — inert branded static tree
+- `itol-zip` — Newick, labels, rank strip, status symbols, and manifest
+
+Exports are generated in memory and streamed directly. They are not persisted
+and never write to Supabase. Production exports are disabled unless explicitly
+enabled. Send `If-Match: <graph revision>` to reject an export if the genealogy
+changed between preview and download.
+
+> **Production gate:** do not set `TREE_EXPORTS_ENABLED=1` on an
+> internet-accessible deployment until the standalone tree service has an
+> authenticated, role-aware authorization boundary. The endpoint validates
+> format, root id, graph integrity, revision, and privacy, but it intentionally
+> does not invent an identity system separate from the CRM. Demo mode enables
+> exports so the complete experience can be tested safely with fictional data.
 
 When embedding, this app must allow being framed by the CRM:
 
@@ -110,10 +139,15 @@ Content-Security-Policy: frame-ancestors https://crm.xopure.com
 - [x] Pan/zoom, expand/collapse, collapsed-descendant badges, lineage highlighting
 - [x] Inspector panel + CRM deep link
 - [x] Data-gap reporting
+- [x] Financial rails (paid / weekly payable / weekly clearing / monthly generation)
+- [x] Coverage indicators that distinguish incomplete data from zero
 - [x] **Running against live production data** (215 ambassadors, 8 generations)
 - [ ] Node annotation rings — blocked: `orderedAt` is NULL on all 128 live orders,
       so there is no activity history to plot until the sync populates it
 - [ ] Radial, grid/block, and parallel-coordinates layout modes
 - [ ] Embed into crm.xopure.com
+- [ ] Week-by-week payout history — blocked until each mirrored commission has
+      its authoritative source earning timestamp; `createdAt` is not used as a
+      substitute
 
 See `docs/XOPURE_MASTER_PLAN.md` for the full roadmap.
