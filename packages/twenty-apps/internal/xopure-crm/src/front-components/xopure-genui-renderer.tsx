@@ -11,6 +11,7 @@ import {
 
 import {
   XOPURE_GENUI_CATALOG_VERSION,
+  XOPURE_GENUI_LEGACY_CATALOG_VERSION,
   XOPURE_GENUI_LIMITS,
   XOPURE_GENUI_PREVIOUS_CATALOG_VERSION,
   XOPURE_GENUI_SCHEMA_VERSION,
@@ -56,10 +57,22 @@ type CompositionState =
 
 type ActionErrorReporter = (message: string) => void;
 
+export const isSupportedXopureCompositionVersion = (
+  schemaVersion: unknown,
+  catalogVersion: unknown,
+): boolean =>
+  schemaVersion === XOPURE_GENUI_SCHEMA_VERSION &&
+  [
+    XOPURE_GENUI_CATALOG_VERSION,
+    XOPURE_GENUI_PREVIOUS_CATALOG_VERSION,
+    XOPURE_GENUI_LEGACY_CATALOG_VERSION,
+  ].includes(catalogVersion as string);
+
 type BlockRenderer<T extends XopureUiCompositionBlock['type']> = (
   block: Extract<XopureUiCompositionBlock, { type: T }>,
   palette: Palette,
   onActionError: ActionErrorReporter,
+  frontComponentId?: string,
 ) => ReactNode;
 
 const paletteFor = (colorScheme: 'light' | 'dark'): Palette =>
@@ -314,6 +327,18 @@ type RecordQueryClient = {
   >;
 };
 
+type CompositionQueryClient = {
+  query: (
+    input: Record<string, unknown>,
+  ) => Promise<{
+    xopureUiCompositions?: {
+      edges?: Array<{
+        node?: { id?: string; name?: string; status?: string } | null;
+      }>;
+    };
+  }>;
+};
+
 export const ensureRecordCanOpen = async (
   objectNameSingular: XopureRecordObjectName,
   recordId: string,
@@ -343,8 +368,37 @@ const openRecordAfterPreflight = async (
   });
 };
 
+export const openCompositionAfterPreflight = async (
+  compositionId: string,
+  frontComponentId: string,
+  client: CompositionQueryClient = new CoreApiClient() as unknown as CompositionQueryClient,
+  openPanel: typeof openSidePanelPage = openSidePanelPage,
+): Promise<void> => {
+  const result = await client.query({
+    xopureUiCompositions: {
+      __args: { filter: { id: { eq: compositionId } }, first: 1 },
+      edges: { node: { id: true, name: true, status: true } },
+    },
+  });
+  const target = result.xopureUiCompositions?.edges?.[0]?.node;
+
+  if (!target?.id || target.status !== 'READY') {
+    throw new Error('Composition target is unavailable.');
+  }
+
+  await openPanel({
+    frontComponentId,
+    objectNameSingular: 'xopureUiComposition',
+    page: SidePanelPages.ViewFrontComponent,
+    pageIcon: 'IconLayoutDashboard',
+    pageTitle: target.name || 'XO Pure composition',
+    recordId: target.id,
+  });
+};
+
 const runAction = async (
   action: XopureUiAction,
+  frontComponentId?: string,
 ): Promise<void> => {
   switch (action.id) {
     case 'open-record':
@@ -354,7 +408,11 @@ const runAction = async (
       );
       return;
     case 'open-composition':
-      throw new Error('Nested composition panels are not supported by this Twenty runtime.');
+      if (!frontComponentId) {
+        throw new Error('Mounted front component identity is unavailable.');
+      }
+      await openCompositionAfterPreflight(action.compositionId, frontComponentId);
+      return;
     case 'navigate-internal':
       await navigate(action.path as AppPath);
       return;
@@ -365,12 +423,13 @@ const renderAction: BlockRenderer<'action'> = (
   block,
   palette,
   onActionError,
+  frontComponentId,
 ) => (
   <section aria-label={block.title ?? block.label} style={blockStyle(palette)}>
     {sectionTitle(block.title)}
     <button
       onClick={() => {
-        void runAction(block.action).catch(() => {
+        void runAction(block.action, frontComponentId).catch(() => {
           onActionError(`Could not complete “${block.label}”. Check access and try again.`);
         });
       }}
@@ -437,10 +496,16 @@ export const renderXopureGenuiBlock = (
   block: XopureUiCompositionBlock,
   palette: XopureGenUiPalette,
   onActionError: ActionErrorReporter,
+  frontComponentId?: string,
 ): ReactNode => {
   switch (block.type) {
     case 'action':
-      return BLOCK_RENDERERS.action(block, palette, onActionError);
+      return BLOCK_RENDERERS.action(
+        block,
+        palette,
+        onActionError,
+        frontComponentId,
+      );
     case 'alert':
       return BLOCK_RENDERERS.alert(block, palette, onActionError);
     case 'chart':
@@ -530,10 +595,10 @@ export const XopureGenuiRenderer = () => {
             : null;
         if (
           document &&
-          (document.schemaVersion !== XOPURE_GENUI_SCHEMA_VERSION ||
-            (document.catalogVersion !== XOPURE_GENUI_CATALOG_VERSION &&
-              document.catalogVersion !==
-                XOPURE_GENUI_PREVIOUS_CATALOG_VERSION))
+          !isSupportedXopureCompositionVersion(
+            document.schemaVersion,
+            document.catalogVersion,
+          )
         ) {
           setState({ status: 'unsupported-version' });
           return;
@@ -707,7 +772,12 @@ export const XopureGenuiRenderer = () => {
       >
         {composition.blocks.map((block) => (
           <div key={block.id}>
-            {renderXopureGenuiBlock(block, palette, setActionError)}
+            {renderXopureGenuiBlock(
+              block,
+              palette,
+              setActionError,
+              executionContext.frontComponentId,
+            )}
           </div>
         ))}
       </div>

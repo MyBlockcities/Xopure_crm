@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   XOPURE_GENUI_CATALOG_VERSION,
+  XOPURE_GENUI_LEGACY_CATALOG_VERSION,
   XOPURE_GENUI_LIMITS,
   XOPURE_GENUI_PREVIOUS_CATALOG_VERSION,
   XOPURE_GENUI_TEMPLATE_CATALOG,
@@ -211,6 +212,7 @@ describe('validateXopureUiComposition', () => {
       additionalProperties: false,
     });
     expect(XOPURE_GENUI_TEMPLATE_CATALOG.blockTypes.action.capabilities).toEqual([
+      'open-composition-panel',
       'open-record-panel',
       'navigate-internal',
     ]);
@@ -250,7 +252,7 @@ describe('validateXopureUiComposition', () => {
         action: { id: 'execute-javascript', source: 'alert(1)' },
       }],
     };
-    const unsupportedNestedAction = {
+    const supportedNestedAction = {
       ...validComposition(),
       blocks: [{
         id: 'nested',
@@ -281,9 +283,18 @@ describe('validateXopureUiComposition', () => {
       ok: false,
       errors: expect.arrayContaining(['$.blocks[0].action.id is not allowlisted']),
     });
-    expect(validateXopureUiComposition(unsupportedNestedAction)).toMatchObject({
-      ok: false,
-      errors: expect.arrayContaining(['$.blocks[0].action.id is not allowlisted']),
+    expect(validateXopureUiComposition(supportedNestedAction)).toMatchObject({
+      ok: true,
+      value: {
+        blocks: [
+          expect.objectContaining({
+            action: {
+              id: 'open-composition',
+              compositionId: '1858ba4c-2c5b-4f4c-a830-08a8add35ea1',
+            },
+          }),
+        ],
+      },
     });
     expect(validateXopureUiComposition(undeclaredCapability)).toMatchObject({
       ok: false,
@@ -488,6 +499,20 @@ describe('validateXopureUiComposition', () => {
     expect(first.value).toEqual({
       ...currentValidation.value,
       catalogVersion: XOPURE_GENUI_CATALOG_VERSION,
+    });
+  });
+
+  it('keeps the original dated catalog migratable after the nested-panel catalog upgrade', () => {
+    const legacy = {
+      ...validComposition(),
+      catalogVersion: XOPURE_GENUI_LEGACY_CATALOG_VERSION,
+    };
+
+    expect(migrateXopureUiComposition(legacy)).toMatchObject({
+      ok: true,
+      migrated: true,
+      fromCatalogVersion: XOPURE_GENUI_LEGACY_CATALOG_VERSION,
+      value: { catalogVersion: XOPURE_GENUI_CATALOG_VERSION },
     });
   });
 });

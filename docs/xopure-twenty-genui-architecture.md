@@ -22,7 +22,7 @@ No generated JavaScript, JSX, raw HTML, arbitrary CSS, arbitrary URL, or direct 
 | Remote DOM allowlist | `packages/twenty-front-component-renderer/src/remote/generated/remote-elements.ts`; deny list in `host/utils/createFallbackComponentRegistry.ts` | Use supported HTML/SVG primitives and inline style strings. Never depend on canvas, WebGL, script/style/link/meta tags, custom elements, portals, direct DOM measurement, storage, or arbitrary browser globals. |
 | Record context | `packages/twenty-sdk/src/sdk/front-component/types/FrontComponentExecutionContext.ts`; `useRecordId.ts` derives a record only when exactly one ID is selected | The renderer accepts one composition record ID. It knows the fixed app object name; it does not infer object metadata from context. |
 | Initial panel | `packages/twenty-sdk/src/sdk/define/command-menu-items/define-command-menu-item.ts`; `HeadlessFrontComponentRendererEngineCommand.tsx` mounts the command front component | A command/front component opens the initial composition panel. Server-side AI tools cannot call host UI APIs. |
-| Nested panel | `packages/twenty-sdk/src/sdk/front-component/functions/openSidePanelPage.ts`; `SidePanelPages.ViewFrontComponent` parameters in `globals/frontComponentHostCommunicationApi.ts` | The API contract exists, but Twenty v2.4.0 browser proof showed a blank child for nested `ViewFrontComponent` and a host-level error for nested `ViewRecord`. Version 1 therefore rejects `open-composition`; re-enable only after the host runtime passes the release gate. |
+| Nested panel | `packages/twenty-sdk/src/sdk/front-component/functions/openSidePanelPage.ts`; `SidePanelPages.ViewFrontComponent` parameters in `globals/frontComponentHostCommunicationApi.ts`; host dispatch in `packages/twenty-front/src/modules/front-components/hooks/useFrontComponentExecutionContext.ts` | Twenty v2.4.0 exposed only a generic page-navigation call and never populated the child front-component instance state, which explained the blank body. Host commit `5242ddf458` adds the typed `ViewFrontComponent` dispatch through `useOpenFrontComponentInSidePanel`, including explicit record context. Catalog 1.1 enables `open-composition` only for hosts containing that contract. |
 | Sandbox/network | `remote/sandbox/utils/createFrontComponentSandboxIframe.ts` uses `sandbox="allow-scripts"`; `host/utils/createHostFetchEnforcingPolicy.ts` enforces configured origins | Fetch only through supported SDK/client bridges. Show bounded loading/error states and fail closed on policy rejection. |
 | Native verification | `twenty-sdk` CLI commands `typecheck`, `build`, and `dev --once` | Every change passes typecheck/build; runtime releases also pass live app sync and browser proof. |
 
@@ -35,7 +35,7 @@ No generated JavaScript, JSX, raw HTML, arbitrary CSS, arbitrary URL, or direct 
 5. The handler persists the canonical document as an `xopureUiComposition` record through `CoreApiClient` and returns its record ID/reference.
 6. The user opens the initial panel through the app command/launcher. The mounted launcher calls `openSidePanelPage` with `ViewFrontComponent`.
 7. The renderer loads the composition record by ID, validates it again, and maps every block type to an allowlisted Remote DOM renderer.
-8. Record links use the supported side-panel API with allowlisted object and record identity after an authorization-aware preflight. Nested compositions fail closed in version 1.
+8. Record links and nested compositions use the supported side-panel APIs only after authorization-aware record preflight. A nested composition must be a readable `READY` `xopureUiComposition`; the renderer then reuses its mounted front-component runtime ID with explicit object and record context (never the manifest universal identifier).
 
 Server tools never claim to open a side panel directly. Tool completion and UI opening are separate supported actions.
 
@@ -67,11 +67,12 @@ Capabilities are catalog-owned, never author-defined. Version 1 permits only:
 
 - `record.read` for the fixed composition record.
 - `record.open` with explicit allowlisted object and record identity.
+- `panel.open-composition` with one explicit readable `READY` composition record.
 - `navigation.internal` for allowlisted Twenty application paths.
 
-`panel.open-composition` is intentionally disabled in version 1 because the current Twenty v2.4.0 host fails the browser gate when a mounted Remote DOM front component opens another panel.
+`panel.open-composition` is available in catalog 1.1 on hosts containing Twenty commit `5242ddf458` or its equivalent typed `ViewFrontComponent` dispatch. Twenty v2.4.0 remains unsupported for nested composition panels and must fail the release compatibility gate rather than silently rendering a blank child.
 
-Defaults: maximum 40 blocks, no nested composition action, 12 table columns, 100 table rows, 100 chart points, 100 timeline entries, 64 KiB serialized document, and 120 characters per title. Unknown keys, versions, templates, capabilities, actions, URL schemes, and oversized values fail validation. Secrets and application-variable values are never serializable composition data.
+Defaults: maximum 40 blocks, no inline composition embedding, one explicit composition target per nested-panel action, 12 table columns, 100 table rows, 100 chart points, 100 timeline entries, 64 KiB serialized document, and 120 characters per title. Unknown keys, versions, templates, capabilities, actions, URL schemes, and oversized values fail validation. Secrets and application-variable values are never serializable composition data.
 
 ## Trust boundary
 
@@ -90,7 +91,7 @@ For every Twenty upgrade:
 3. Diff the Remote DOM element/event allowlist and iframe/fetch policy.
 4. Confirm logic-function tool discovery and `ToolOutput`/record-reference behavior.
 5. Run native app typecheck/build/sync.
-6. Browser-smoke composition load, every template, initial opening, nested opening, malformed documents, unauthorized records, and blocked URLs. Keep `open-composition` out of the catalog until nested opening passes without a blank child or host crash.
+6. Browser-smoke composition load, every template, initial opening, nested opening, malformed documents, unauthorized records, and blocked URLs. If the host lacks the specialized `ViewFrontComponent` dispatch or nested opening regresses to a blank child/host crash, block release of catalog 1.1.
 
 Any changed contract blocks release until this decision record and the application implementation agree.
 

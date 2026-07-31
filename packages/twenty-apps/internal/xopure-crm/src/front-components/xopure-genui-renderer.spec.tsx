@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { type XopureUiCompositionBlock } from '../genui/xopure-ui-composition';
 import {
+  openCompositionAfterPreflight,
   ensureRecordCanOpen,
+  isSupportedXopureCompositionVersion,
   renderXopureGenuiBlock,
   resolveXopureCompositionRecordId,
   type XopureGenUiPalette,
@@ -135,5 +137,55 @@ describe('XO Pure GenUI renderer contracts', () => {
         query: vi.fn().mockRejectedValue(new Error('forbidden')),
       }),
     ).rejects.toThrow('forbidden');
+  });
+
+  it('preflights a READY child composition before opening its renderer panel', async () => {
+    const query = vi.fn().mockResolvedValue({
+      xopureUiCompositions: {
+        edges: [{ node: { id: targetId, name: 'Child composition', status: 'READY' } }],
+      },
+    });
+    const openPanel = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      openCompositionAfterPreflight(
+        targetId,
+        'installed-front-component-id',
+        { query },
+        openPanel,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(query).toHaveBeenCalledWith({
+      xopureUiCompositions: {
+        __args: { filter: { id: { eq: targetId } }, first: 1 },
+        edges: { node: { id: true, name: true, status: true } },
+      },
+    });
+    expect(openPanel).toHaveBeenCalledWith({
+      frontComponentId: 'installed-front-component-id',
+      objectNameSingular: 'xopureUiComposition',
+      page: 'view-front-component',
+      pageIcon: 'IconLayoutDashboard',
+      pageTitle: 'Child composition',
+      recordId: targetId,
+    });
+
+    await expect(
+      openCompositionAfterPreflight(
+        targetId,
+        'installed-front-component-id',
+        { query: vi.fn().mockResolvedValue({ xopureUiCompositions: { edges: [] } }) },
+        openPanel,
+      ),
+    ).rejects.toThrow('Composition target is unavailable.');
+  });
+
+  it('allows every migratable catalog through the renderer version gate', () => {
+    expect(isSupportedXopureCompositionVersion(1, '1.1.0')).toBe(true);
+    expect(isSupportedXopureCompositionVersion(1, '1.0.0')).toBe(true);
+    expect(isSupportedXopureCompositionVersion(1, '2026-07-26.1')).toBe(true);
+    expect(isSupportedXopureCompositionVersion(1, '2.0.0')).toBe(false);
+    expect(isSupportedXopureCompositionVersion(2, '1.1.0')).toBe(false);
   });
 });

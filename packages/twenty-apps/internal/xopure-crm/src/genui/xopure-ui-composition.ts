@@ -1,6 +1,7 @@
 export const XOPURE_GENUI_SCHEMA_VERSION = 1;
-export const XOPURE_GENUI_CATALOG_VERSION = '1.0.0';
-export const XOPURE_GENUI_PREVIOUS_CATALOG_VERSION = '2026-07-26.1';
+export const XOPURE_GENUI_CATALOG_VERSION = '1.1.0';
+export const XOPURE_GENUI_PREVIOUS_CATALOG_VERSION = '1.0.0';
+export const XOPURE_GENUI_LEGACY_CATALOG_VERSION = '2026-07-26.1';
 
 export const XOPURE_GENUI_LIMITS = {
   maxBlocks: 40,
@@ -201,11 +202,13 @@ export type XopureGenUiTemplateCatalog = {
     readonly colorRoles: readonly ['surface', 'border', 'text', 'muted', 'accent'];
   };
   limits: typeof XOPURE_GENUI_LIMITS;
-  migrations: readonly [{
-    readonly fromCatalogVersion: typeof XOPURE_GENUI_PREVIOUS_CATALOG_VERSION;
+  migrations: ReadonlyArray<{
+    readonly fromCatalogVersion:
+      | typeof XOPURE_GENUI_PREVIOUS_CATALOG_VERSION
+      | typeof XOPURE_GENUI_LEGACY_CATALOG_VERSION;
     readonly toCatalogVersion: typeof XOPURE_GENUI_CATALOG_VERSION;
     readonly strategy: 'catalog-version-only';
-  }];
+  }>;
   blockTypes: {
     readonly [Type in XopureGenUiBlockType]: XopureGenUiTemplateCatalogEntry;
   };
@@ -365,6 +368,13 @@ const actionInputSchema = blockSchema(
       oneOf: [
         closedObjectSchema(
           {
+            id: { type: 'string', enum: ['open-composition'] },
+            compositionId: uuidSchema,
+          },
+          ['id', 'compositionId'],
+        ),
+        closedObjectSchema(
+          {
             id: { type: 'string', enum: ['open-record'] },
             recordId: uuidSchema,
             objectNameSingular: recordTargetSchema,
@@ -407,6 +417,7 @@ export const XOPURE_GENUI_TOOL_COMPOSITION_INPUT_SCHEMA: XopureGenUiJsonSchema =
         enum: [
           XOPURE_GENUI_CATALOG_VERSION,
           XOPURE_GENUI_PREVIOUS_CATALOG_VERSION,
+          XOPURE_GENUI_LEGACY_CATALOG_VERSION,
         ],
       },
       title: safeTextSchema(MAX_TITLE_LENGTH),
@@ -452,6 +463,10 @@ export const XOPURE_GENUI_TEMPLATE_CATALOG = {
     fromCatalogVersion: XOPURE_GENUI_PREVIOUS_CATALOG_VERSION,
     toCatalogVersion: XOPURE_GENUI_CATALOG_VERSION,
     strategy: 'catalog-version-only',
+  }, {
+    fromCatalogVersion: XOPURE_GENUI_LEGACY_CATALOG_VERSION,
+    toCatalogVersion: XOPURE_GENUI_CATALOG_VERSION,
+    strategy: 'catalog-version-only',
   }],
   blockTypes: {
     kpi: { actionIds: [], capabilities: [], inputSchema: kpiInputSchema },
@@ -461,8 +476,12 @@ export const XOPURE_GENUI_TEMPLATE_CATALOG = {
     alert: { actionIds: [], capabilities: [], inputSchema: alertInputSchema },
     markdown: { actionIds: [], capabilities: [], inputSchema: markdownInputSchema },
     action: {
-      actionIds: ['open-record', 'navigate-internal'],
-      capabilities: ['open-record-panel', 'navigate-internal'],
+      actionIds: ['open-composition', 'open-record', 'navigate-internal'],
+      capabilities: [
+        'open-composition-panel',
+        'open-record-panel',
+        'navigate-internal',
+      ],
       inputSchema: actionInputSchema,
     },
     'record-link': {
@@ -988,11 +1007,17 @@ export type XopureUiCompositionMigrationResult =
 export const migrateXopureUiComposition = (
   input: unknown,
 ): XopureUiCompositionMigrationResult => {
+  const migratableCatalogVersions = [
+    XOPURE_GENUI_PREVIOUS_CATALOG_VERSION,
+    XOPURE_GENUI_LEGACY_CATALOG_VERSION,
+  ] as const;
+
   if (
     isPlainObject(input) &&
     input.schemaVersion === XOPURE_GENUI_SCHEMA_VERSION &&
-    input.catalogVersion === XOPURE_GENUI_PREVIOUS_CATALOG_VERSION
+    isOneOf(input.catalogVersion, migratableCatalogVersions)
   ) {
+    const fromCatalogVersion = input.catalogVersion;
     const validation = validateXopureUiComposition({
       ...input,
       catalogVersion: XOPURE_GENUI_CATALOG_VERSION,
@@ -1001,7 +1026,7 @@ export const migrateXopureUiComposition = (
       ? {
           ok: true,
           value: validation.value,
-          fromCatalogVersion: XOPURE_GENUI_PREVIOUS_CATALOG_VERSION,
+          fromCatalogVersion,
           migrated: true,
         }
       : validation;
